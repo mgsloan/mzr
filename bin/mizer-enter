@@ -37,4 +37,4 @@ fi
 
 export PS1="[\$GIT_MIZER_TARGET] $PS1"
 
-$script_dir/../tlpi-dist/namespaces/userns_child_exec -m -U -z $script_dir/mizer-mount
+$script_dir/userns_child_exec -m -U -z $script_dir/mizer-mount
