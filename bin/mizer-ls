@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -e
+
+if [ -z "$GIT_MIZER_DIR" ]
+then
+  local_mizer="$PWD/.git-mizer"
+  echo "$local_mizer"
+  if [ -d "$local_mizer" ]
+  then
+    GIT_MIZER_DIR="$local_mizer"
+  else
+    echo "Expected to be in git-mizer shell or for .git-mizer to be present in current dir"
+    exit 1
+  fi
+fi
+
+ls "$GIT_MIZER_DIR/upper" $@

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -e
+
+script_dir=$(dirname "$0")
+
+if [ -z "$1" ]
+then
+    pushd $GIT_MIZER_DIR
+    raw_created=$(mktemp -d -p . "variantXXX")
+    # Trim leading ./
+    export GIT_MIZER_VARIANT=${raw_created#$"./"}
+    popd
+    echo "Since no cli argument specified, using a random git-mizer variant: $GIT_MIZER_VARIANT"
+else
+    export GIT_MIZER_VARIANT=$1
+    echo "Using first cli argument as the git-mizer variant: $GIT_MIZER_VARIANT"
+fi
+
+set +e
+umount $GIT_MIZER_TARGET
+if [ $? -ne 0 ]
+then
+  echo "Failed to unmount git-mizer work directory."
+  echo ""
+  echo "fuser -v output may be helpful in identifying what process is keeping it in use:"
+  echo ""
+  fuser -v $GIT_MIZER_TARGET 2>&1 >/dev/null | grep -v "^Cannot stat file" | grep -v "^\s*root\s*mount"
+  exit 1
+fi
+set -e
+
+$script_dir/mizer-mount
