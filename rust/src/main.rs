@@ -17,7 +17,6 @@ extern crate yansi;
 use failure::Error;
 use std::process::exit;
 use structopt::StructOpt;
-use yansi::Paint;
 
 mod colors;
 mod container;
@@ -31,6 +30,7 @@ use paths::ZoneName;
 use top_dirs::TopDirs;
 use utils::execvp;
 use zone::Zone;
+use colors::color_err;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "mzr", author = "Michael Sloan <mgsloan@gmail.com>")]
@@ -47,7 +47,7 @@ fn main() {
     match result {
         Ok(()) => {}
         Err(err) => {
-            println!("{} {}", Paint::red("Error: "), err);
+            println!("{} {:?}", color_err(&"Mizer error: "), err);
             exit(1);
         }
     }

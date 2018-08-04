@@ -40,7 +40,8 @@ pub fn execvp(cmd: &str) -> Result<Void, Error> {
         "Failed to convert command named {} to C string",
         cmd
     ))?;
-    Ok(unistd::execvp(&cmd_cstring, &[]).context(format!(
+    unistd::execvp(&cmd_cstring, &[]).context(format!(
         "Failed to execute bash. Is it in a directory listed in your PATH environment variable?"
-    ))?)
+    ))?;
+    panic!("Impossible: execvp returned without an error code");
 }

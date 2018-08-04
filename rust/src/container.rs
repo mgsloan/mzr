@@ -1,13 +1,17 @@
-use failure::Error;
+use failure::{Error, ResultExt};
 use ipc_channel::ipc::{self, IpcOneShotServer, IpcReceiver, IpcSender};
 use nix::sched::CloneFlags;
-use nix::sys::wait::waitpid;
+use nix::sys::wait::{waitpid, WaitStatus::*};
 use nix::unistd;
 use std::boxed::Box;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::{thread, time};
 use yansi::Paint;
+use nix::errno::Errno;
+use nix::Error::Sys;
+
+use colors::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Ready;
@@ -19,12 +23,12 @@ where
     // new unshared mount namespace and a new unshared user namespace.
     let clone_flags = CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWUSER;
 
-    // TODO Seems to me like from the glibc docs of clone, a stack for the child
-    // should only be necessary if CLONE_VM is set.
+    // TODO(cleanup): Seems to me like from the glibc docs of clone, a stack for
+    // the child should only be necessary if CLONE_VM is set.
     const STACK_SIZE: usize = 1024 * 1024;
     let ref mut child_stack: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
-    let (parent_server, parent_name) = IpcOneShotServer::new()?;
+    let (parent_server, parent_name) = init_ipc()?;
     let child_pid = ::nix::sched::clone(
         Box::new(|| {
             // Wait for ready message that UID mapping has been setup before
@@ -36,7 +40,7 @@ where
                 // Exited successfully.
                 Ok(()) => 0,
                 Err(err) => {
-                    println!("{} {}", Paint::red("Error in mizer child:"), err);
+                    println!("{} {:?}", color_err(&"Mizer child error:"), err);
                     1
                 }
             }
@@ -44,40 +48,85 @@ where
         child_stack,
         clone_flags,
         None,
-    )?;
+    ).context("Error while cloning mizer child with unshared user and mount namespaces.")?;
 
     // Map the current user to root within the child process.
-    let uid_map_path = format!("/proc/{}/uid_map", child_pid);
-    let mut uid_map_file = OpenOptions::new().write(true).open(uid_map_path)?;
-    uid_map_file.write_all(format!("0 {} 1\n", unistd::Uid::current()).as_bytes())?;
+    map_user_to_root(child_pid)?;
 
     send_ready(parent_server)?;
 
     // FIXME: Why is this necessary??  Should do something more reliable.
     thread::sleep(time::Duration::from_millis(100));
 
-    waitpid(child_pid, None)?;
+    match waitpid(child_pid, None) {
+        Err(e@Sys(Errno::ECHILD)) => Err(e).context("Failed to find mizer child after fork.")?,
+        Err(e@Sys(Errno::EINTR)) => Err(e).context("Waiting for mizer child interrupted by signal.")?,
+        Err(e@Sys(Errno::EINVAL)) => Err(e).context("Impossible: waitpid was called wrong.")?,
+        Err(e) => Err(e).context("Unexpected error in waitpid.")?,
+        Ok(Exited(_, status)) => {
+            if status == 0 {
+                println!("Mizer child exited with success.");
+            } else {
+                println!("Mizer child exited with {} {}", color_err(&"error code"), color_err(&status));
+            }
+        },
+        Ok(Signaled(_, signal, _)) => {
+            println!("Mizer child was {} {:?}", color_err(&"killed by signal"), color_err(&signal));
+        },
+        Ok(status) => {
+            // The other status results only occur when particular options are
+            // passed to waitpid.
+            bail!("Response from waiting for child should be impossible: {:?}", Paint::blue(status));
+        }
+    }
 
     Ok(())
 }
 
+// IPC helper functions
+
+fn init_ipc() -> Result<(IpcOneShotServer<IpcSender<Ready>>, String), Error> {
+    wrap_ipc(IpcOneShotServer::new().map_err(|x| x.into()))
+}
+
+// TODO(cleanup): Made up this idiom of using an argumentless closure to still
+// use the "?" error plumbing, while having a helper that modifies the error
+// contents.  Is there a cleaner way to do something like this?
+
 fn send_ready(parent_server: IpcOneShotServer<IpcSender<Ready>>) -> Result<(), Error> {
-    let (_, tx1): (_, IpcSender<Ready>) = parent_server.accept()?;
-    tx1.send(Ready)?;
-    Ok(())
+    wrap_ipc((|| {
+        let (_, tx1): (_, IpcSender<Ready>) = parent_server.accept()?;
+        tx1.send(Ready)?;
+        Ok(())
+    })())
 }
 
 fn recv_ready(parent_name: &String) -> Result<(), Error> {
-    // Establish a connection with the parent.
-    let (tx1, rx1): (IpcSender<Ready>, IpcReceiver<Ready>) = ipc::channel()?;
-    let tx0 = IpcSender::connect(parent_name.to_string())?;
-    tx0.send(tx1)?;
-    let Ready = rx1.recv()?;
-    Ok(())
+    wrap_ipc((|| {
+        // Establish a connection with the parent.
+        let (tx1, rx1): (IpcSender<Ready>, IpcReceiver<Ready>) = ipc::channel()?;
+        let tx0 = IpcSender::connect(parent_name.to_string())?;
+        tx0.send(tx1)?;
+        let Ready = rx1.recv()?;
+        Ok(())
+    })())
 }
 
-/*
-fn ipc_error<T>(x: Result<T, bincode::Error>) -> Result<T, Error> {
-    x.map_err(|e| format_err!("Error in interprocess communication: {}", e)).map(|x| ())
+fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
+    Ok(x.context("Error encountered in interprocess communication mechanism.")?)
 }
-*/
+
+// UID mapping helper functions
+
+fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
+    wrap_user_mapping((|| {
+        let uid_map_path = format!("/proc/{}/uid_map", child_pid);
+        let mut uid_map_file = OpenOptions::new().write(true).open(uid_map_path)?;
+        uid_map_file.write_all(format!("0 {} 1\n", unistd::Uid::current()).as_bytes())?;
+        Ok(())
+    })())
+}
+
+fn wrap_user_mapping<T>(x: Result<T, Error>) -> Result<T, Error> {
+    Ok(x.context("Error encountered while mapping user to root within the child process user namespace.")?)
+}

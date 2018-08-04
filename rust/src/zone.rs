@@ -44,8 +44,8 @@ impl Zone {
             &self.ovfs_work_dir,
             &self.user_work_dir,
         ).mount()
-            // TODO: Should make it so that '?' can be used, by making libmount
-            // Error implement Sync.
+            // TODO(cleanup): Should make it so that '?' can be used, by making
+            // libmount Error implement Sync.
             .map_err(|e| format_err!("{}", e))
     }
 
@@ -58,7 +58,7 @@ impl Zone {
     */
 }
 
-// TODO: These should include more info
+// TODO(nice-errors): These should include more info
 
 /*
 #[derive(Debug, Fail)]
