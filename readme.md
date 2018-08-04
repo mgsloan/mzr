@@ -245,10 +245,10 @@ running process:
 [![XKCD 303: The #1 programmer excuse for legitimately slacking off: "My code's
 compiling"](https://imgs.xkcd.com/comics/compiling.png)](https://xkcd.com/303/)
 
-Instead of slacking off after kicking off a long running task
+Instead of slacking off after kicking off a long running task, perhaps you can
+be mizerly with your time and get in the zone!
 
 [`git worktree`]: https://git-scm.com/docs/git-worktree
-
 
 ### Q: Isn't this a generally useful thing beyond git?
 
