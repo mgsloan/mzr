@@ -1,15 +1,15 @@
 use failure::{Error, ResultExt};
 use ipc_channel::ipc::{self, IpcOneShotServer, IpcReceiver, IpcSender};
+use nix::errno::Errno;
 use nix::sched::CloneFlags;
 use nix::sys::wait::{waitpid, WaitStatus::*};
 use nix::unistd;
+use nix::Error::Sys;
 use std::boxed::Box;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::{thread, time};
 use yansi::Paint;
-use nix::errno::Errno;
-use nix::Error::Sys;
 
 use colors::*;
 
@@ -29,26 +29,27 @@ where
     let ref mut child_stack: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
     let (parent_server, parent_name) = init_ipc()?;
-    let child_pid = ::nix::sched::clone(
-        Box::new(|| {
-            // Wait for ready message that UID mapping has been setup before
-            // running child_fn. Otherwise, mounting will fail. Also, if the
-            // child process attempts to exec before the UID mapping has been
-            // setup, then the child will lose its capabilities (see
-            // "capabilities(7)" man page).
-            match recv_ready(&parent_name).and(child_fn()) {
-                // Exited successfully.
-                Ok(()) => 0,
-                Err(err) => {
-                    println!("{} {:?}", color_err(&"Mizer child error:"), err);
-                    1
+    let child_pid =
+        ::nix::sched::clone(
+            Box::new(|| {
+                // Wait for ready message that UID mapping has been setup before
+                // running child_fn. Otherwise, mounting will fail. Also, if the
+                // child process attempts to exec before the UID mapping has been
+                // setup, then the child will lose its capabilities (see
+                // "capabilities(7)" man page).
+                match recv_ready(&parent_name).and(child_fn()) {
+                    // Exited successfully.
+                    Ok(()) => 0,
+                    Err(err) => {
+                        println!("{} {:?}", color_err(&"Mizer child error:"), err);
+                        1
+                    }
                 }
-            }
-        }),
-        child_stack,
-        clone_flags,
-        None,
-    ).context("Error while cloning mizer child with unshared user and mount namespaces.")?;
+            }),
+            child_stack,
+            clone_flags,
+            None,
+        ).context("Error while cloning mizer child with unshared user and mount namespaces.")?;
 
     // Map the current user to root within the child process.
     map_user_to_root(child_pid)?;
@@ -59,24 +60,37 @@ where
     thread::sleep(time::Duration::from_millis(100));
 
     match waitpid(child_pid, None) {
-        Err(e@Sys(Errno::ECHILD)) => Err(e).context("Failed to find mizer child after fork.")?,
-        Err(e@Sys(Errno::EINTR)) => Err(e).context("Waiting for mizer child interrupted by signal.")?,
-        Err(e@Sys(Errno::EINVAL)) => Err(e).context("Impossible: waitpid was called wrong.")?,
+        Err(e @ Sys(Errno::ECHILD)) => Err(e).context("Failed to find mizer child after fork.")?,
+        Err(e @ Sys(Errno::EINTR)) => {
+            Err(e).context("Waiting for mizer child interrupted by signal.")?
+        }
+        Err(e @ Sys(Errno::EINVAL)) => Err(e).context("Impossible: waitpid was called wrong.")?,
         Err(e) => Err(e).context("Unexpected error in waitpid.")?,
         Ok(Exited(_, status)) => {
             if status == 0 {
                 println!("Mizer child exited with success.");
             } else {
-                println!("Mizer child exited with {} {}", color_err(&"error code"), color_err(&status));
+                println!(
+                    "Mizer child exited with {} {}",
+                    color_err(&"error code"),
+                    color_err(&status)
+                );
             }
-        },
+        }
         Ok(Signaled(_, signal, _)) => {
-            println!("Mizer child was {} {:?}", color_err(&"killed by signal"), color_err(&signal));
-        },
+            println!(
+                "Mizer child was {} {:?}",
+                color_err(&"killed by signal"),
+                color_err(&signal)
+            );
+        }
         Ok(status) => {
             // The other status results only occur when particular options are
             // passed to waitpid.
-            bail!("Response from waiting for child should be impossible: {:?}", Paint::blue(status));
+            bail!(
+                "Response from waiting for child should be impossible: {:?}",
+                Paint::blue(status)
+            );
         }
     }
 
@@ -128,5 +142,7 @@ fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
 }
 
 fn wrap_user_mapping<T>(x: Result<T, Error>) -> Result<T, Error> {
-    Ok(x.context("Error encountered while mapping user to root within the child process user namespace.")?)
+    Ok(x.context(
+        "Error encountered while mapping user to root within the child process user namespace.",
+    )?)
 }
