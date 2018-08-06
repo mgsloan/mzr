@@ -2,7 +2,9 @@ use colors::*;
 use std::convert::AsRef;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use utils::add_suffix_to_path;
+use failure::{Error};
 
 /// Path to the mizer directory - typically something like
 /// `.../PROJECT.mizer`, a sibling of `.../PROJECT`.
@@ -26,12 +28,6 @@ pub struct UserRootDir(PathBuf);
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct ZoneDir(PathBuf);
 
-/// Name of a zone.
-///
-/// TODO(zone-name-validation): document validation once it has that.
-#[derive(Debug, Clone, Shrinkwrap)]
-pub struct ZoneName(String);
-
 /// Path to snapshot directory.
 ///
 /// TODO(snapshots): document typical directory once it is controlled.
@@ -50,6 +46,18 @@ pub struct ChangesDir(PathBuf);
 /// putting them in the upper dir.
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct OvfsWorkDir(PathBuf);
+
+/// Name of a zone.
+///
+/// TODO(name-validation): document validation once it has that.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct ZoneName(String);
+
+/// Name of a zone.
+///
+/// TODO(name-validation): document validation once it has that.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct SnapName(String);
 
 impl MizerDir {
     pub fn new(root_dir: &UserRootDir) -> MizerDir {
@@ -79,13 +87,6 @@ impl ZoneDir {
     }
 }
 
-impl ZoneName {
-    // TODO(zone-name-validation)
-    pub fn new(name: String) -> ZoneName {
-        ZoneName(name)
-    }
-}
-
 impl SnapDir {
     // TODO(snapshots): for now, the root dir is used as the lower dir.
     pub fn new(root_dir: &UserRootDir) -> SnapDir {
@@ -106,6 +107,34 @@ impl OvfsWorkDir {
         let mut ovfs_work_dir = zone_dir.0.clone();
         ovfs_work_dir.push("ovfs-work");
         OvfsWorkDir(ovfs_work_dir)
+    }
+}
+
+impl ZoneName {
+    pub fn new(name: String) -> Result<Self, Error> {
+        // TODO(name-validation)
+        Ok(ZoneName(name))
+    }
+}
+
+impl FromStr for ZoneName {
+    type Err = Error;
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        Ok(ZoneName::new(name.to_string())?)
+    }
+}
+
+impl SnapName {
+    pub fn new(name: String) -> Result<Self, Error> {
+        // TODO(name-validation)
+        Ok(SnapName(name))
+    }
+}
+
+impl FromStr for SnapName {
+    type Err = Error;
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        Ok(SnapName::new(name.to_string())?)
     }
 }
 
@@ -133,12 +162,6 @@ impl AsRef<Path> for ZoneDir {
     }
 }
 
-impl AsRef<Path> for ZoneName {
-    fn as_ref(&self) -> &Path {
-        self.0.as_ref()
-    }
-}
-
 impl AsRef<Path> for SnapDir {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
@@ -152,6 +175,18 @@ impl AsRef<Path> for ChangesDir {
 }
 
 impl AsRef<Path> for OvfsWorkDir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for ZoneName {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for SnapName {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
@@ -181,12 +216,6 @@ impl Display for ZoneDir {
     }
 }
 
-impl Display for ZoneName {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-        color_zone_name(&self.0).fmt(f)
-    }
-}
-
 impl Display for SnapDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
@@ -202,5 +231,17 @@ impl Display for ChangesDir {
 impl Display for OvfsWorkDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for ZoneName {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_zone_name(&self.0).fmt(f)
+    }
+}
+
+impl Display for SnapName {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_snap_name(&self.0).fmt(f)
     }
 }
