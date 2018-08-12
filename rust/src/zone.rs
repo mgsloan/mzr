@@ -18,9 +18,13 @@ pub struct Zone {
 impl Zone {
     // TODO(snapshots): Should load some of this stuff from files in the zone
     // dir instead of trusting the correspondance.
-    pub fn load(top_dirs: &TopDirs, zone_name: &ZoneName) -> Result<Zone, Error> {
-        let zone_dir = ZoneDir::new(&top_dirs.mizer_dir, &zone_name);
-        let snap_dir = SnapDir::new(&top_dirs.user_root_dir);
+    pub fn load(
+        top_dirs: &TopDirs,
+        zone_name: &ZoneName,
+        snap_name: &SnapName,
+    ) -> Result<Zone, Error> {
+        let zone_dir = ZoneDir::new(&top_dirs.mzr_dir, &zone_name);
+        let snap_dir = SnapDir::new(&top_dirs.mzr_dir, &snap_name);
         let changes_dir = ChangesDir::new(&zone_dir);
         let ovfs_work_dir = OvfsWorkDir::new(&zone_dir);
         // Create dirs if necessary.

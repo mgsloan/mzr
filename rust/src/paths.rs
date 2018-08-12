@@ -1,43 +1,43 @@
 use colors::*;
+use failure::Error;
 use std::convert::AsRef;
+use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use utils::add_suffix_to_path;
-use failure::{Error};
 
-/// Path to the mizer directory - typically something like
-/// `.../PROJECT.mizer`, a sibling of `.../PROJECT`.
+/// Path to the mzr directory - typically something like `.../PROJECT.mzr`, a
+/// sibling of `.../PROJECT`.
 #[derive(Debug, Clone, Shrinkwrap)]
-pub struct MizerDir(PathBuf);
+pub struct MzrDir(PathBuf);
 
 /// Path to the user's work directory. This is the "target" path of the
 /// overlayfs mount.
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct UserWorkDir(PathBuf);
 
-/// Project dir where the user invoked mizer.
-///
-/// TODO(snapshots): In the near future this will probably be the same as
-/// `UserWorkDir`.
-#[derive(Debug, Clone, Shrinkwrap)]
-pub struct UserRootDir(PathBuf);
-
-/// Path to the zone directory within the mizer directory - typically something
-/// like `.../PROJECT.mizer/zone/ZONE`.
+/// Path to the zone directory within the mzr directory - typically something
+/// like `.../PROJECT.mzr/zone/ZONE`.
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct ZoneDir(PathBuf);
 
-/// Path to snapshot directory.
-///
-/// TODO(snapshots): document typical directory once it is controlled.
+/// Path to snapshot directory- typically something like
+/// `.../PROJECT.mzr/snap/SNAP`.
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct SnapDir(PathBuf);
 
+/// Path to a temporary location for the snapshot directory - typically
+/// something like `.../PROJECT.mzr/snap-tmp/SNAP`. This is used for in-progress
+/// snapshots. This way, `SnapDir` should always contain fully frozen and
+/// complete snapshots.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct SnapTmpDir(PathBuf);
+
 /// Path to the zone changes directory - typically something like
-/// `.../PROJECT.mizer/zone/ZONE/changes`. This is used as the "upper" dir of
-/// the overlayfs mount, and so changes that overlay the snapshot are stored
-/// here, hence the name `changes`.
+/// `.../PROJECT.mzr/zone/ZONE/changes`. This is used as the "upper" dir of the
+/// overlayfs mount, and so changes that overlay the snapshot are stored here,
+/// hence the name `changes`.
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct ChangesDir(PathBuf);
 
@@ -59,43 +59,63 @@ pub struct ZoneName(String);
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct SnapName(String);
 
-impl MizerDir {
-    pub fn new(root_dir: &UserRootDir) -> MizerDir {
-        MizerDir(add_suffix_to_path(root_dir, ".mizer"))
+impl MzrDir {
+    pub fn new(work_dir: &UserWorkDir) -> Self {
+        MzrDir(add_suffix_to_path(work_dir, ".mzr"))
     }
 }
 
 impl UserWorkDir {
-    pub fn new(root_dir: &UserRootDir) -> UserWorkDir {
-        UserWorkDir(add_suffix_to_path(root_dir, ".work"))
+    pub fn new(work_dir: &PathBuf) -> Self {
+        UserWorkDir(work_dir.clone())
     }
-}
 
-impl UserRootDir {
-    pub fn new(root_dir: &PathBuf) -> UserRootDir {
-        UserRootDir(root_dir.clone())
+    pub fn to_arg(&self) -> &OsStr {
+        self.0.as_ref()
     }
 }
 
 impl ZoneDir {
-    pub fn new(mizer_dir: &MizerDir, zone_name: &ZoneName) -> ZoneDir {
-        let mizer_dir_buf: &PathBuf = mizer_dir.as_ref();
-        let mut zone_dir = mizer_dir_buf.clone();
-        zone_dir.push("zone");
-        zone_dir.push(zone_name);
-        ZoneDir(zone_dir)
+    pub fn new(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Self {
+        let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
+        let mut result = mzr_dir_buf.clone();
+        result.push("zone");
+        result.push(zone_name);
+        ZoneDir(result)
     }
 }
 
 impl SnapDir {
+    pub fn new(mzr_dir: &MzrDir, snap_name: &SnapName) -> Self {
+        let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
+        let mut result = mzr_dir_buf.clone();
+        result.push("snap");
+        result.push(snap_name);
+        SnapDir(result)
+    }
+
+    pub fn to_arg(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl SnapTmpDir {
     // TODO(snapshots): for now, the root dir is used as the lower dir.
-    pub fn new(root_dir: &UserRootDir) -> SnapDir {
-        SnapDir(root_dir.0.clone())
+    pub fn new(mzr_dir: &MzrDir, snap_name: &SnapName) -> Self {
+        let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
+        let mut result = mzr_dir_buf.clone();
+        result.push("snap-tmp");
+        result.push(snap_name);
+        SnapTmpDir(result)
+    }
+
+    pub fn to_arg(&self) -> &OsStr {
+        self.0.as_ref()
     }
 }
 
 impl ChangesDir {
-    pub fn new(zone_dir: &ZoneDir) -> ChangesDir {
+    pub fn new(zone_dir: &ZoneDir) -> Self {
         let mut changes_dir = zone_dir.0.clone();
         changes_dir.push("changes");
         ChangesDir(changes_dir)
@@ -103,7 +123,7 @@ impl ChangesDir {
 }
 
 impl OvfsWorkDir {
-    pub fn new(zone_dir: &ZoneDir) -> OvfsWorkDir {
+    pub fn new(zone_dir: &ZoneDir) -> Self {
         let mut ovfs_work_dir = zone_dir.0.clone();
         ovfs_work_dir.push("ovfs-work");
         OvfsWorkDir(ovfs_work_dir)
@@ -138,19 +158,13 @@ impl FromStr for SnapName {
     }
 }
 
-impl AsRef<Path> for MizerDir {
+impl AsRef<Path> for MzrDir {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
 }
 
 impl AsRef<Path> for UserWorkDir {
-    fn as_ref(&self) -> &Path {
-        self.0.as_ref()
-    }
-}
-
-impl AsRef<Path> for UserRootDir {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
@@ -163,6 +177,12 @@ impl AsRef<Path> for ZoneDir {
 }
 
 impl AsRef<Path> for SnapDir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for SnapTmpDir {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
@@ -192,19 +212,13 @@ impl AsRef<Path> for SnapName {
     }
 }
 
-impl Display for MizerDir {
+impl Display for MzrDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for UserWorkDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-        color_dir(&self.0.display()).fmt(f)
-    }
-}
-
-impl Display for UserRootDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
@@ -217,6 +231,12 @@ impl Display for ZoneDir {
 }
 
 impl Display for SnapDir {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_dir(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for SnapTmpDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
