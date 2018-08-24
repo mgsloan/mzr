@@ -67,6 +67,7 @@ fn main() {
     match result {
         Ok(()) => {}
         Err(err) => {
+            println!("");
             println!("{} {}", color_err(&"mzr error:"), err);
             exit(1);
         }

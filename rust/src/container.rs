@@ -41,6 +41,7 @@ where
                     // Exited successfully.
                     Ok(()) => 0,
                     Err(err) => {
+                        println!("");
                         println!("{} {}", color_err(&"mzr child error:"), err);
                         1
                     }
