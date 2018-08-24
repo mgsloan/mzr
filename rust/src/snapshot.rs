@@ -56,7 +56,9 @@ fn create(source_dir: &PathBuf, mzr_dir: &MzrDir, snap_name: &SnapName) -> Resul
             }
         }
     }
-    rename(snap_tmp_dir, snap_dir)?;
+    rename(snap_tmp_dir, snap_dir).context(format_err!(
+        "Unexpected error moving the temporary directory for {} into the snapshots folder", snap_name
+    ))?;
     // Remove snap-tmp directory, if possible. Ignore error results, since it's
     // anticipated that sometimes the tmp dir may have other contents.
     let _ = snap_tmp_dir.parent().map(|x| remove_dir(x));
@@ -76,17 +78,13 @@ fn ensure_tmp_dir(mzr_dir: &MzrDir, snap_name: &SnapName) -> Result<SnapTmpDir, 
     // actively snapshotting.
     if snap_tmp_dir.exists() {
         println!(
-            "Temporary directory to use as copy target already exists: {}",
+            "Temporary directory to use as copy target already exists at {}",
             snap_tmp_dir
         );
         match confirm(&"Attempt to delete this directory")? {
             Confirmed::Yes => remove_dir_all(snap_tmp_dir)?,
             Confirmed::No => bail!("Aborting "),
-        }
-        match create_dir(snap_tmp_dir) {
-            Err(e2) => Err(e2)?,
-            Ok(()) => {}
-        }
+        };
     }
     snap_tmp_dir.parent().map(|x| create_dir_all(x));
     // TODO(cleanup): Can this clone be avoided?
