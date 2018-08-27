@@ -1,11 +1,10 @@
 use colors::*;
 use failure::{Error, ResultExt};
 use paths::*;
-use std::fs::{create_dir, create_dir_all, remove_dir, remove_dir_all, rename};
+use std::fs::create_dir_all;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use top_dirs::TopDirs;
-use utils::{confirm, Confirmed};
 
 pub fn of_workdir(top_dirs: &TopDirs, snap_name: &SnapName) -> Result<SnapDir, Error> {
     create(&top_dirs.user_work_dir, &top_dirs.mzr_dir, snap_name)
@@ -17,7 +16,13 @@ fn create(source_dir: &PathBuf, mzr_dir: &MzrDir, snap_name: &SnapName) -> Resul
         // TODO(friendliness): Should suggest "mzr rm" feature once it exists.
         bail!("A snapshot named {} already exists.", snap_name);
     }
-    let snap_tmp_dir = &ensure_tmp_dir(mzr_dir, &snap_name)?;
+    let snap_parent = snap_dir.parent().ok_or(format_err!(
+        "Unexpected error: snapshot directory must have a parent."
+    ))?;
+    create_dir_all(snap_parent).context(format_err!(
+        "Unexpected error while creating snapshot parent directory {}",
+        color_dir(&snap_parent.display())
+    ))?;
     let mut cmd_base = Command::new("cp");
     let cmd = cmd_base
         .stdin(Stdio::null())
@@ -39,8 +44,7 @@ fn create(source_dir: &PathBuf, mzr_dir: &MzrDir, snap_name: &SnapName) -> Resul
         .arg("--no-target-directory")
         // Source directory
         .arg(source_dir)
-        .arg(snap_tmp_dir.to_arg());
-    println!("Taking a snapshot named {}", snap_name);
+        .arg(snap_dir.to_arg());
     match cmd.status() {
         Err(e) => Err(e).context(format_err!(
             "Error encountered while running {:?}",
@@ -56,37 +60,6 @@ fn create(source_dir: &PathBuf, mzr_dir: &MzrDir, snap_name: &SnapName) -> Resul
             }
         }
     }
-    rename(snap_tmp_dir, snap_dir).context(format_err!(
-        "Unexpected error moving the temporary directory for {} into the snapshots folder", snap_name
-    ))?;
-    // Remove snap-tmp directory, if possible. Ignore error results, since it's
-    // anticipated that sometimes the tmp dir may have other contents.
-    let _ = snap_tmp_dir.parent().map(|x| remove_dir(x));
-    // Let the user know that it succeeded.
-    println!("Finished taking snapshot.");
     // TODO(cleanup): Can this clone be avoided?
     Ok(snap_dir.clone())
-}
-
-/// Ensures that the `SnapTmpDir` doesn't exist, and also ensures that its
-/// parent directories do exist.
-///
-/// If it does exist, then prompts the user to attempt to delete it.
-fn ensure_tmp_dir(mzr_dir: &MzrDir, snap_name: &SnapName) -> Result<SnapTmpDir, Error> {
-    let snap_tmp_dir = &SnapTmpDir::new(mzr_dir, &snap_name);
-    // TODO(friendliness): Would be nice to detect if a concurrent mzr is
-    // actively snapshotting.
-    if snap_tmp_dir.exists() {
-        println!(
-            "Temporary directory to use as copy target already exists at {}",
-            snap_tmp_dir
-        );
-        match confirm(&"Attempt to delete this directory")? {
-            Confirmed::Yes => remove_dir_all(snap_tmp_dir)?,
-            Confirmed::No => bail!("Aborting "),
-        };
-    }
-    snap_tmp_dir.parent().map(|x| create_dir_all(x));
-    // TODO(cleanup): Can this clone be avoided?
-    Ok(snap_tmp_dir.clone())
 }

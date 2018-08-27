@@ -11,21 +11,25 @@ extern crate shrinkwraprs;
 #[macro_use]
 extern crate structopt;
 
+extern crate chrono;
 extern crate ipc_channel;
 extern crate libmount;
 extern crate nix;
 extern crate semver;
 extern crate serde;
+extern crate serde_json;
 extern crate void;
 extern crate yansi;
 
 use failure::Error;
+use std::env;
 use std::process::exit;
 use structopt::StructOpt;
 
 mod colors;
 mod container;
 mod git;
+mod json;
 mod paths;
 mod snapshot;
 mod top_dirs;
@@ -56,6 +60,11 @@ enum Cmd {
         #[structopt(flatten)]
         opts: SnapOpts,
     },
+    #[structopt(name = "go", about = "Switch working directory to a different zone")]
+    Go {
+        #[structopt(flatten)]
+        opts: GoOpts,
+    },
 }
 
 fn main() {
@@ -63,12 +72,13 @@ fn main() {
     let result = match cmd {
         Cmd::Shell { opts } => shell(opts),
         Cmd::Snap { opts } => snap(opts),
+        Cmd::Go { opts } => go(opts),
     };
     match result {
         Ok(()) => {}
         Err(err) => {
             println!("");
-            println!("{} {}", color_err(&"mzr error:"), err);
+            println!("{} {:?}", color_err(&"mzr error:"), err);
             exit(1);
         }
     }
@@ -92,10 +102,25 @@ struct ShellOpts {
 
 fn shell(opts: ShellOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("enter mzr shell")?;
-    let snap_name = default_git_snap_name(&top_dirs, opts.snap_name)?;
-    let zone = Zone::load(&top_dirs, &opts.zone_name, &snap_name)?;
+    let zone = match Zone::load_if_exists(&top_dirs.mzr_dir, &opts.zone_name)? {
+        Some(zone) => zone,
+        None => {
+            let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
+            /* TODO(friendliness): What should the snapshot creation logic be?
+            println!("Taking a snapshot named {}", snap_name);
+            snapshot::create(&top_dirs.user_work_dir, &top_dirs.mzr_dir, &snap_name)?;
+            println!("Finished taking snapshot.");
+            */
+            Zone::create(&top_dirs.mzr_dir, &opts.zone_name, &snap_name)?
+        }
+    };
     with_unshared_user_and_mount(|| {
-        zone.mount()?;
+        zone.mount(&top_dirs.user_work_dir)?;
+        // Need to reset current directory after mount, because the
+        // inode has changed.
+        env::set_current_dir(&top_dirs.user_work_dir)?;
+        env::set_var("MZR_DIR", &top_dirs.mzr_dir);
+        env::set_var("MZR_ZONE", &opts.zone_name);
         execvp("bash")?;
         Ok(())
     })?;
@@ -118,8 +143,28 @@ struct SnapOpts {
 
 fn snap(opts: SnapOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("take mzr snapshot")?;
-    let snap_name = default_git_snap_name(&top_dirs, opts.snap_name)?;
+    let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
+    println!("Taking a snapshot named {}", snap_name);
     let _snap_dir = snapshot::of_workdir(&top_dirs, &snap_name)?;
+    println!("Finished taking snapshot.");
+    Ok(())
+}
+
+/*
+ * "mzr go"
+ */
+
+#[derive(StructOpt, Debug)]
+struct GoOpts {
+    #[structopt(name = "ZONE_NAME", help = "Name of the zone to switch to.")]
+    zone_name: ZoneName,
+}
+
+fn go(opts: GoOpts) -> Result<(), Error> {
+    /*
+    let top_dirs = TopDirs::find_or_prompt_create("switch mzr zone")?;
+    let zone = Zone::load(&top_dirs.mzr_dir, &opts.zone_name);
+    */
     Ok(())
 }
 
@@ -130,10 +175,10 @@ fn snap(opts: SnapOpts) -> Result<(), Error> {
 
 fn default_git_snap_name(
     top_dirs: &TopDirs,
-    snap_name: Option<SnapName>,
+    snap_name: &Option<SnapName>,
 ) -> Result<SnapName, Error> {
     match snap_name {
-        Some(name) => Ok(name),
+        Some(name) => Ok(name.clone()),
         None => {
             git::warn_env();
             // TODO: Consider adding "_vN" suffixes to these, to disambiguate

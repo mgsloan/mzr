@@ -4,6 +4,11 @@ pub fn color_dir<T>(x: &T) -> Paint<&T> {
     Paint::blue(x).bold()
 }
 
+pub fn color_file<T>(x: &T) -> Paint<&T> {
+    // TODO(cleanup): different color?
+    Paint::blue(x).bold()
+}
+
 pub fn color_zone_name<T>(x: &T) -> Paint<&T> {
     Paint::yellow(x).bold()
 }

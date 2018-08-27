@@ -11,6 +11,11 @@ pub struct TopDirs {
     pub user_work_dir: UserWorkDir,
 }
 
+// FIXME: mzr dir should probably be something like
+// ~/.mzr/WORK-1a2b3c/ where WORK is a short name for the dir, and the
+// rest is a short sha for the path.  Or maybe it's folly to try to
+// associate snapshots with projects via absolute path? Hmm
+
 impl TopDirs {
     /*
     pub fn find() -> Result<TopDirs, Error> {
@@ -57,7 +62,7 @@ impl TopDirs {
                                 // create_dir_all usages)
                                 create_dir_all(dirs.mzr_dir.clone())?;
                                 create_dir_all(dirs.user_work_dir.clone())?;
-                                println!("Mzr directory initialized.");
+                                println!("mzr directory initialized.");
                                 //TODO(cleanup): can this clone be avoided?
                                 Ok(dirs.clone())
                             }

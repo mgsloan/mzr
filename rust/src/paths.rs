@@ -22,17 +22,15 @@ pub struct UserWorkDir(PathBuf);
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct ZoneDir(PathBuf);
 
-/// Path to snapshot directory- typically something like
+/// Path to the zone info file - typically something
+/// like `.../PROJECT.mzr/zone/ZONE/info.json`.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct ZoneInfoFile(PathBuf);
+
+/// Path to snapshot directory - typically something like
 /// `.../PROJECT.mzr/snap/SNAP`.
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct SnapDir(PathBuf);
-
-/// Path to a temporary location for the snapshot directory - typically
-/// something like `.../PROJECT.mzr/snap-tmp/SNAP`. This is used for in-progress
-/// snapshots. This way, `SnapDir` should always contain fully frozen and
-/// complete snapshots.
-#[derive(Debug, Clone, Shrinkwrap)]
-pub struct SnapTmpDir(PathBuf);
 
 /// Path to the zone changes directory - typically something like
 /// `.../PROJECT.mzr/zone/ZONE/changes`. This is used as the "upper" dir of the
@@ -47,6 +45,11 @@ pub struct ChangesDir(PathBuf);
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct OvfsWorkDir(PathBuf);
 
+/// Path to the daemon pid-file, which stores the process id of the
+/// mzr daemon.  It is typically something like
+/// `.../PROJECT.mzr/daemon.pid`.
+pub struct DaemonPidFile(PathBuf);
+
 /// Name of a zone.
 ///
 /// TODO(name-validation): document validation once it has that.
@@ -56,7 +59,7 @@ pub struct ZoneName(String);
 /// Name of a zone.
 ///
 /// TODO(name-validation): document validation once it has that.
-#[derive(Debug, Clone, Shrinkwrap)]
+#[derive(Debug, Clone, Shrinkwrap, Serialize, Deserialize)]
 pub struct SnapName(String);
 
 impl MzrDir {
@@ -85,6 +88,15 @@ impl ZoneDir {
     }
 }
 
+impl ZoneInfoFile {
+    pub fn new(zone_dir: &ZoneDir) -> Self {
+        let zone_info_buf: &PathBuf = zone_dir.as_ref();
+        let mut result = zone_info_buf.clone();
+        result.push("info.json");
+        ZoneInfoFile(result)
+    }
+}
+
 impl SnapDir {
     pub fn new(mzr_dir: &MzrDir, snap_name: &SnapName) -> Self {
         let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
@@ -92,21 +104,6 @@ impl SnapDir {
         result.push("snap");
         result.push(snap_name);
         SnapDir(result)
-    }
-
-    pub fn to_arg(&self) -> &OsStr {
-        self.0.as_ref()
-    }
-}
-
-impl SnapTmpDir {
-    // TODO(snapshots): for now, the root dir is used as the lower dir.
-    pub fn new(mzr_dir: &MzrDir, snap_name: &SnapName) -> Self {
-        let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
-        let mut result = mzr_dir_buf.clone();
-        result.push("snap-tmp");
-        result.push(snap_name);
-        SnapTmpDir(result)
     }
 
     pub fn to_arg(&self) -> &OsStr {
@@ -127,6 +124,15 @@ impl OvfsWorkDir {
         let mut ovfs_work_dir = zone_dir.0.clone();
         ovfs_work_dir.push("ovfs-work");
         OvfsWorkDir(ovfs_work_dir)
+    }
+}
+
+impl DaemonPidFile {
+    pub fn new(mzr_dir: &MzrDir) -> Self {
+        let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
+        let mut result = mzr_dir_buf.clone();
+        result.push("daemon.pid");
+        DaemonPidFile(result)
     }
 }
 
@@ -176,13 +182,13 @@ impl AsRef<Path> for ZoneDir {
     }
 }
 
-impl AsRef<Path> for SnapDir {
+impl AsRef<Path> for ZoneInfoFile {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
 }
 
-impl AsRef<Path> for SnapTmpDir {
+impl AsRef<Path> for SnapDir {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
@@ -200,6 +206,12 @@ impl AsRef<Path> for OvfsWorkDir {
     }
 }
 
+impl AsRef<Path> for DaemonPidFile {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
 impl AsRef<Path> for ZoneName {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
@@ -208,6 +220,66 @@ impl AsRef<Path> for ZoneName {
 
 impl AsRef<Path> for SnapName {
     fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for MzrDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for UserWorkDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for ZoneDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for ZoneInfoFile {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for SnapDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for ChangesDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for OvfsWorkDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for DaemonPidFile {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for ZoneName {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for SnapName {
+    fn as_ref(&self) -> &OsStr {
         self.0.as_ref()
     }
 }
@@ -230,13 +302,13 @@ impl Display for ZoneDir {
     }
 }
 
-impl Display for SnapDir {
+impl Display for ZoneInfoFile {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-        color_dir(&self.0.display()).fmt(f)
+        color_file(&self.0.display()).fmt(f)
     }
 }
 
-impl Display for SnapTmpDir {
+impl Display for SnapDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
@@ -251,6 +323,12 @@ impl Display for ChangesDir {
 impl Display for OvfsWorkDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for DaemonPidFile {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_file(&self.0.display()).fmt(f)
     }
 }
 

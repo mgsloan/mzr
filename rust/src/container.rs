@@ -132,16 +132,28 @@ fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
 }
 
 // UID mapping helper functions
-
 fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
     wrap_user_mapping((|| {
+        // Map current user to root within the user namespace.
         let uid_map_path = format!("/proc/{}/uid_map", child_pid);
         let mut uid_map_file = OpenOptions::new().write(true).open(uid_map_path)?;
         uid_map_file.write_all(format!("0 {} 1\n", unistd::Uid::current()).as_bytes())?;
+
+        // Disable usage of setgroups system call, allowing gid_map to
+        // be written.
+        let set_groups_path = format!("/proc/{}/setgroups", child_pid);
+        let mut set_groups_file = OpenOptions::new().write(true).open(set_groups_path)?;
+        set_groups_file.write_all(b"deny")?;
+
+        // Map current group to root within the user namespace.
+        let gid_map_path = format!("/proc/{}/gid_map", child_pid);
+        let mut gid_map_file = OpenOptions::new().write(true).open(gid_map_path)?;
+        gid_map_file.write_all(format!("0 {} 1\n", unistd::Gid::current()).as_bytes())?;
         Ok(())
     })())
 }
 
+// TODO(cleanup)
 fn wrap_user_mapping<T>(x: Result<T, Error>) -> Result<T, Error> {
     Ok(x.context(
         "Error encountered while mapping user to root within the child process user namespace.",
