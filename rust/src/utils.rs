@@ -73,5 +73,5 @@ pub fn execvp(cmd: &str) -> Result<Void, Error> {
     unistd::execvp(&cmd_cstring, &[]).context(format!(
         "Failed to execute bash. Is it in a directory listed in your PATH environment variable?"
     ))?;
-    panic!("Impossible: execvp returned without an error code");
+    panic!("Impossible: execvp returned without an error code")
 }

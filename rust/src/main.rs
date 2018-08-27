@@ -25,6 +25,7 @@ use failure::Error;
 use std::env;
 use std::process::exit;
 use structopt::StructOpt;
+use void::unreachable;
 
 mod colors;
 mod container;
@@ -121,10 +122,9 @@ fn shell(opts: ShellOpts) -> Result<(), Error> {
         env::set_current_dir(&top_dirs.user_work_dir)?;
         env::set_var("MZR_DIR", &top_dirs.mzr_dir);
         env::set_var("MZR_ZONE", &opts.zone_name);
-        execvp("bash")?;
-        Ok(())
-    })?;
-    Ok(())
+        let void = execvp("bash")?
+        unreachable(void)
+    })
 }
 
 /*
