@@ -1,4 +1,9 @@
 #![feature(const_vec_new)]
+// Allowing these makes prototyping convenient.
+//
+// TODO(cleanup): remove once that phase is done.
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 #[macro_use]
 extern crate failure;
