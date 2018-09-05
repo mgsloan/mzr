@@ -9,9 +9,10 @@ use yansi::Paint;
 
 use container;
 use zone::Zone;
+use colors::*;
 
 pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
-    container::with_unshared_user_and_mount(|| {
+    let _pid = container::with_unshared_user_and_mount(|| {
         let daemon_dir = DaemonDir::new(&mzr_dir);
         create_dir_all(&daemon_dir)?;
         // TODO(cleanup): Don't truncate old daemon logs?
@@ -38,5 +39,11 @@ pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
         thread::sleep(time::Duration::from_secs(60 * 60));
         Ok(())
     })?;
+    // TODO(friendliness): Include this output, but only do it when
+    // the daemon has actually started. Currently if you start the
+    // daemon while another is running, and this line is uncommented,
+    // it outputs.
+    //
+    // println!("Started {} with PID {}", color_cmd(&String::from("mzr daemon")), color_cmd(&pid));
     Ok(())
 }
