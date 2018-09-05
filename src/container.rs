@@ -19,7 +19,7 @@ use utils::parse_pid_file;
 #[derive(Serialize, Deserialize, Debug)]
 struct Ready;
 
-pub fn with_unshared_user_and_mount<F>(mut child_fn: F) -> Result<(), Error>
+pub fn with_unshared_user_and_mount<F>(mut child_fn: F) -> Result<unistd::Pid, Error>
 where
     F: FnMut() -> Result<(), Error>,
 {
@@ -60,15 +60,29 @@ where
 
     send_ready(parent_server)?;
 
-    // FIXME: Why is this necessary??  Should do something more reliable.
+    Ok(child_pid)
+}
+
+pub fn with_unshared_user_and_mount_wait_exit<F>(child_fn: F) -> Result<(), Error>
+where
+        F: FnMut() -> Result<(), Error>
+{
+    let child_pid = with_unshared_user_and_mount(child_fn)?;
+
+    // FIXME: Why is this necessary??  Should do something
+    // more reliable.
     thread::sleep(time::Duration::from_millis(100));
 
     match waitpid(child_pid, None) {
-        Err(e @ Sys(Errno::ECHILD)) => Err(e).context("Failed to find mzr child after fork.")?,
+        Err(e @ Sys(Errno::ECHILD)) => {
+            Err(e).context("Failed to find mzr child after fork.")?
+        }
         Err(e @ Sys(Errno::EINTR)) => {
             Err(e).context("Waiting for mzr child interrupted by signal.")?
         }
-        Err(e @ Sys(Errno::EINVAL)) => Err(e).context("Impossible: waitpid was called wrong.")?,
+        Err(e @ Sys(Errno::EINVAL)) => {
+            Err(e).context("Impossible: waitpid was called wrong.")?
+        }
         Err(e) => Err(e).context("Unexpected error in waitpid.")?,
         Ok(Exited(_, status)) => {
             if status == 0 {
