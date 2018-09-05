@@ -1,17 +1,20 @@
 use failure::{Error, ResultExt};
 use ipc_channel::ipc::{self, IpcOneShotServer, IpcReceiver, IpcSender};
 use nix::errno::Errno;
-use nix::sched::CloneFlags;
+use nix::sched::{setns, unshare, CloneFlags};
 use nix::sys::wait::{waitpid, WaitStatus::*};
 use nix::unistd;
 use nix::Error::Sys;
 use std::boxed::Box;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::os::unix::io::IntoRawFd;
 use std::{thread, time};
 use yansi::Paint;
 
 use colors::*;
+use paths::*;
+use utils::parse_pid_file;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Ready;
@@ -158,4 +161,39 @@ fn wrap_user_mapping<T>(x: Result<T, Error>) -> Result<T, Error> {
     Ok(x.context(
         "Error encountered while mapping user to root within the child process user namespace.",
     )?)
+}
+
+pub fn enter_daemon_space(mzr_dir: &MzrDir) -> Result<(), Error> {
+    enter_container(&parse_pid_file(DaemonPidFile::new(&DaemonDir::new(
+        &mzr_dir,
+    )))?)
+}
+
+pub fn unshare_mount() -> Result<(), Error> {
+    Ok(unshare(CloneFlags::CLONE_NEWNS)?)
+}
+
+fn enter_container(pid: &unistd::Pid) -> Result<(), Error> {
+    let proc_dir = ProcDir::new(&pid);
+    enter_ns(
+        ProcNamespaceFile::new_user(&proc_dir),
+        CloneFlags::CLONE_NEWUSER,
+    )?;
+    enter_ns(
+        ProcNamespaceFile::new_mount(&proc_dir),
+        CloneFlags::CLONE_NEWNS,
+    )
+}
+
+fn enter_ns(ns_path: ProcNamespaceFile, flags: CloneFlags) -> Result<(), Error> {
+    // TODO(cleanup): make daemon_cmd a constant.
+    let daemon_cmd_str = String::from("mzr daemon");
+    let daemon_cmd = color_cmd(&daemon_cmd_str);
+    let ns_file = File::open(&ns_path).context(format_err!(
+        "Is {} running? Encountered unexpected error opening {}.",
+        daemon_cmd,
+        &ns_path
+    ))?;
+    setns(ns_file.into_raw_fd(), flags)?;
+    Ok(())
 }

@@ -1,5 +1,7 @@
 use colors::*;
 use failure::Error;
+use nix::libc::pid_t;
+use nix::unistd::Pid;
 use std::convert::AsRef;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
@@ -33,22 +35,54 @@ pub struct ZoneInfoFile(PathBuf);
 pub struct SnapDir(PathBuf);
 
 /// Path to the zone changes directory - typically something like
-/// `.../PROJECT.mzr/zone/ZONE/changes`. This is used as the "upper" dir of the
-/// overlayfs mount, and so changes that overlay the snapshot are stored here,
-/// hence the name `changes`.
+/// `.../PROJECT.mzr/zone/ZONE/changes`. This is used as the "upper"
+/// dir of the overlayfs mount, and so changes that overlay the
+/// snapshot are stored here, hence the name `changes`.
 #[derive(Debug, Clone, Shrinkwrap)]
-pub struct ChangesDir(PathBuf);
+pub struct OvfsChangesDir(PathBuf);
 
 /// Path to the overlayfs work directory. This must be in the same filesystem as
-/// the associated `ChangesDir`, because it is used to prepare files before
+/// the associated `OvfsChangesDir`, because it is used to prepare files before
 /// putting them in the upper dir.
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct OvfsWorkDir(PathBuf);
 
+/// Path to the zone mount directory - typically something like
+/// `.../PROJECT.mzr/zone/ZONE/mount`. This is used as the mount
+/// target for the overlayfs mount.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct OvfsMountDir(PathBuf);
+
+/// Path to the directory containing daemon related files. It is
+/// typically something like `.../PROJECT.mzr/daemon`.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct DaemonDir(PathBuf);
+
 /// Path to the daemon pid-file, which stores the process id of the
-/// mzr daemon.  It is typically something like
-/// `.../PROJECT.mzr/daemon.pid`.
+/// mzr daemon. It is typically something like
+/// `.../PROJECT.mzr/daemon/process`.
+#[derive(Debug, Clone, Shrinkwrap)]
 pub struct DaemonPidFile(PathBuf);
+
+/// Path to the daemon log file - typically something like
+/// `.../PROJECT.mzr/daemon/log`.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct DaemonLogFile(PathBuf);
+
+/// Path to the daemon unix domain socket - typically something like
+/// `.../PROJECT.mzr/daemon/socket`.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct DaemonSocketFile(PathBuf);
+
+/// Path for a process, within the proc filesystem - typically
+/// something like `/proc/PID`, where `PID` is the process identifier
+/// of a running process.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct ProcDir(PathBuf);
+
+/// Path to a proc filesystem namespace file, such as
+/// `/proc/PID/ns/mount` or `/proc/PID/ns/user`.
+pub struct ProcNamespaceFile(PathBuf);
 
 /// Name of a zone.
 ///
@@ -56,7 +90,7 @@ pub struct DaemonPidFile(PathBuf);
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct ZoneName(String);
 
-/// Name of a zone.
+/// Name of a snapshot.
 ///
 /// TODO(name-validation): document validation once it has that.
 #[derive(Debug, Clone, Shrinkwrap, Serialize, Deserialize)]
@@ -73,6 +107,7 @@ impl UserWorkDir {
         UserWorkDir(work_dir.clone())
     }
 
+    #[allow(dead_code)]
     pub fn to_arg(&self) -> &OsStr {
         self.0.as_ref()
     }
@@ -111,11 +146,11 @@ impl SnapDir {
     }
 }
 
-impl ChangesDir {
+impl OvfsChangesDir {
     pub fn new(zone_dir: &ZoneDir) -> Self {
-        let mut changes_dir = zone_dir.0.clone();
-        changes_dir.push("changes");
-        ChangesDir(changes_dir)
+        let mut ovfs_changes_dir = zone_dir.0.clone();
+        ovfs_changes_dir.push("changes");
+        OvfsChangesDir(ovfs_changes_dir)
     }
 }
 
@@ -127,12 +162,73 @@ impl OvfsWorkDir {
     }
 }
 
-impl DaemonPidFile {
+impl OvfsMountDir {
+    pub fn new(zone_dir: &ZoneDir) -> Self {
+        let mut ovfs_mount_dir = zone_dir.0.clone();
+        ovfs_mount_dir.push("mount");
+        OvfsMountDir(ovfs_mount_dir)
+    }
+}
+
+impl DaemonDir {
     pub fn new(mzr_dir: &MzrDir) -> Self {
         let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
         let mut result = mzr_dir_buf.clone();
-        result.push("daemon.pid");
+        result.push("daemon");
+        DaemonDir(result)
+    }
+}
+
+impl DaemonPidFile {
+    pub fn new(daemon_dir: &DaemonDir) -> Self {
+        let dir_buf: &PathBuf = daemon_dir.as_ref();
+        let mut result = dir_buf.clone();
+        result.push("process.pid");
         DaemonPidFile(result)
+    }
+}
+
+impl DaemonLogFile {
+    pub fn new(daemon_dir: &DaemonDir) -> Self {
+        let dir_buf: &PathBuf = daemon_dir.as_ref();
+        let mut result = dir_buf.clone();
+        result.push("log");
+        DaemonLogFile(result)
+    }
+}
+
+impl DaemonSocketFile {
+    pub fn new(daemon_dir: &DaemonDir) -> Self {
+        let dir_buf: &PathBuf = daemon_dir.as_ref();
+        let mut result = dir_buf.clone();
+        result.push("socket");
+        DaemonSocketFile(result)
+    }
+}
+
+impl ProcDir {
+    pub fn new(pid: &Pid) -> Self {
+        let mut dir_buf = PathBuf::from("/proc");
+        dir_buf.push(pid_t::from(pid.clone()).to_string());
+        ProcDir(dir_buf)
+    }
+}
+
+impl ProcNamespaceFile {
+    pub fn new_mount(dir: &ProcDir) -> Self {
+        Self::new(dir, "mnt")
+    }
+
+    pub fn new_user(dir: &ProcDir) -> Self {
+        Self::new(dir, "user")
+    }
+
+    fn new<P: AsRef<Path>>(dir: &ProcDir, subdir: P) -> Self {
+        let dir_buf: &PathBuf = dir.as_ref();
+        let mut result = dir_buf.clone();
+        result.push("ns");
+        result.push(subdir);
+        ProcNamespaceFile(result)
     }
 }
 
@@ -194,7 +290,7 @@ impl AsRef<Path> for SnapDir {
     }
 }
 
-impl AsRef<Path> for ChangesDir {
+impl AsRef<Path> for OvfsChangesDir {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
@@ -206,7 +302,43 @@ impl AsRef<Path> for OvfsWorkDir {
     }
 }
 
+impl AsRef<Path> for OvfsMountDir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for DaemonDir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
 impl AsRef<Path> for DaemonPidFile {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for DaemonLogFile {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for DaemonSocketFile {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for ProcDir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for ProcNamespaceFile {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
@@ -254,7 +386,7 @@ impl AsRef<OsStr> for SnapDir {
     }
 }
 
-impl AsRef<OsStr> for ChangesDir {
+impl AsRef<OsStr> for OvfsChangesDir {
     fn as_ref(&self) -> &OsStr {
         self.0.as_ref()
     }
@@ -266,7 +398,43 @@ impl AsRef<OsStr> for OvfsWorkDir {
     }
 }
 
+impl AsRef<OsStr> for OvfsMountDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for DaemonDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
 impl AsRef<OsStr> for DaemonPidFile {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for DaemonLogFile {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for DaemonSocketFile {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for ProcDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for ProcNamespaceFile {
     fn as_ref(&self) -> &OsStr {
         self.0.as_ref()
     }
@@ -314,7 +482,7 @@ impl Display for SnapDir {
     }
 }
 
-impl Display for ChangesDir {
+impl Display for OvfsChangesDir {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
@@ -326,7 +494,43 @@ impl Display for OvfsWorkDir {
     }
 }
 
+impl Display for OvfsMountDir {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_dir(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for DaemonDir {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_file(&self.0.display()).fmt(f)
+    }
+}
+
 impl Display for DaemonPidFile {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_file(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for DaemonLogFile {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_file(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for DaemonSocketFile {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_file(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for ProcDir {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        color_dir(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for ProcNamespaceFile {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }

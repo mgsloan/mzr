@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use failure::{Error, ResultExt};
-use libmount::Overlay;
+use libmount::{BindMount, Overlay};
 use std::fs::{create_dir, create_dir_all};
 use std::iter;
 
@@ -12,8 +12,9 @@ use paths::*;
 pub struct Zone {
     pub zone_dir: ZoneDir,
     pub snap_dir: SnapDir,
-    pub changes_dir: ChangesDir,
+    pub ovfs_changes_dir: OvfsChangesDir,
     pub ovfs_work_dir: OvfsWorkDir,
+    pub ovfs_mount_dir: OvfsMountDir,
     pub info: ZoneInfo,
 }
 
@@ -47,7 +48,6 @@ impl Zone {
         }
     }
 
-    /*
     pub fn load_or_create<F>(
         mzr_dir: &MzrDir,
         zone_name: &ZoneName,
@@ -64,7 +64,6 @@ impl Zone {
             Zone::create_impl(mzr_dir, &zone_dir, zone_name, &snap_name)
         }
     }
-    */
 
     fn create_impl(
         mzr_dir: &MzrDir,
@@ -103,15 +102,20 @@ impl Zone {
                 }
             }
             Ok(()) => {
-                let changes_dir = ChangesDir::new(&zone_dir);
+                let ovfs_changes_dir = OvfsChangesDir::new(&zone_dir);
                 let ovfs_work_dir = OvfsWorkDir::new(&zone_dir);
-                create_dir_all(changes_dir.clone()).context(format_err!(
-                    "Unexpected error while creating zone changes directory {}",
-                    changes_dir
+                let ovfs_mount_dir = OvfsMountDir::new(&zone_dir);
+                create_dir_all(ovfs_changes_dir.clone()).context(format_err!(
+                    "Unexpected error while creating zone changes directory for overlayfs: {}",
+                    ovfs_changes_dir
                 ))?;
                 create_dir_all(ovfs_work_dir.clone()).context(format_err!(
-                    "Unexpected error while creating zone ovfs work directory {}",
+                    "Unexpected error while creating zone work directory for overlayfs: {}",
                     ovfs_work_dir
+                ))?;
+                create_dir_all(ovfs_mount_dir.clone()).context(format_err!(
+                    "Unexpected error while creating zone mount directory for overlayfs: {}",
+                    ovfs_mount_dir
                 ))?;
                 let info = ZoneInfo {
                     snapshot: snap_name.clone(),
@@ -121,8 +125,9 @@ impl Zone {
                 Ok(Zone {
                     zone_dir: zone_dir.clone(),
                     snap_dir,
-                    changes_dir,
+                    ovfs_changes_dir,
                     ovfs_work_dir,
+                    ovfs_mount_dir,
                     info,
                 })
             }
@@ -132,26 +137,35 @@ impl Zone {
     pub fn load_impl(mzr_dir: &MzrDir, zone_dir: &ZoneDir) -> Result<Zone, Error> {
         let info: ZoneInfo = json::read(&ZoneInfoFile::new(&zone_dir))?.contents;
         let snap_dir = SnapDir::new(mzr_dir, &info.snapshot);
-        let changes_dir = ChangesDir::new(zone_dir);
+        let ovfs_changes_dir = OvfsChangesDir::new(zone_dir);
         let ovfs_work_dir = OvfsWorkDir::new(zone_dir);
+        let ovfs_mount_dir = OvfsMountDir::new(zone_dir);
         Ok(Zone {
             zone_dir: zone_dir.clone(),
             snap_dir,
-            changes_dir,
+            ovfs_changes_dir,
             ovfs_work_dir,
+            ovfs_mount_dir,
             info,
         })
     }
 
-    pub fn mount(&self, work_dir: &UserWorkDir) -> Result<(), Error> {
+    pub fn mount(&self) -> Result<(), Error> {
         Overlay::writable(
             iter::once(self.snap_dir.as_ref()),
-            &self.changes_dir,
+            &self.ovfs_changes_dir,
             &self.ovfs_work_dir,
-            &work_dir,
+            &self.ovfs_mount_dir,
         ).mount()
             // TODO(cleanup): Should make it so that '?' can be used,
-            // by making libmount Error implement Sync.
+            // by making libmount Error implement Sync. Same pattern
+            // repeated below for bind mount.
+            .map_err(|e| format_err!("{}", e))
+    }
+
+    pub fn bind_to(&self, user_work_dir: &UserWorkDir) -> Result<(), Error> {
+        BindMount::new(&self.ovfs_mount_dir, &user_work_dir)
+            .mount()
             .map_err(|e| format_err!("{}", e))
     }
 }

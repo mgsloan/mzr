@@ -17,10 +17,18 @@ pub struct TopDirs {
 // associate snapshots with projects via absolute path? Hmm
 
 impl TopDirs {
-    /*
-    pub fn find() -> Result<TopDirs, Error> {
-        TopDirs::find_impl(&current_dir()?)
-    } */
+    pub fn find(action: &str) -> Result<TopDirs, Error> {
+        match TopDirs::find_impl(&current_dir()?) {
+            Ok(top_dirs) => Ok(top_dirs),
+            Err(err) => match err.downcast() {
+                Ok(MzrDirNotFound) => Err(format_err!(
+                    "Couldn't find mzr directory, and can't {} without one.",
+                    action
+                ))?,
+                Err(other_err) => Err(other_err)?,
+            },
+        }
+    }
 
     fn find_impl(start_dir: &PathBuf) -> Result<TopDirs, Error> {
         let mut dir = start_dir.clone();
@@ -61,7 +69,6 @@ impl TopDirs {
                                 //TODO(cleanup): can this clone be avoided? (same on other
                                 // create_dir_all usages)
                                 create_dir_all(dirs.mzr_dir.clone())?;
-                                create_dir_all(dirs.user_work_dir.clone())?;
                                 println!("mzr directory initialized.");
                                 //TODO(cleanup): can this clone be avoided?
                                 Ok(dirs.clone())

@@ -17,6 +17,7 @@ extern crate shrinkwraprs;
 extern crate structopt;
 
 extern crate chrono;
+extern crate daemonize;
 extern crate ipc_channel;
 extern crate libmount;
 extern crate nix;
@@ -34,6 +35,7 @@ use void::unreachable;
 
 mod colors;
 mod container;
+mod daemon;
 mod git;
 mod json;
 mod paths;
@@ -43,7 +45,6 @@ mod utils;
 mod zone;
 
 use colors::color_err;
-use container::with_unshared_user_and_mount;
 use paths::{SnapName, ZoneName};
 use top_dirs::TopDirs;
 use utils::execvp;
@@ -56,6 +57,8 @@ use zone::Zone;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "mzr", author = "Michael Sloan <mgsloan@gmail.com>")]
 enum Cmd {
+    #[structopt(name = "daemon", about = "Run mzr daemon")]
+    Daemon {},
     #[structopt(name = "shell", about = "Enter a mzr shell")]
     Shell {
         #[structopt(flatten)]
@@ -76,6 +79,7 @@ enum Cmd {
 fn main() {
     let cmd = Cmd::from_args();
     let result = match cmd {
+        Cmd::Daemon {} => daemon(),
         Cmd::Shell { opts } => shell(opts),
         Cmd::Snap { opts } => snap(opts),
         Cmd::Go { opts } => go(opts),
@@ -84,10 +88,19 @@ fn main() {
         Ok(()) => {}
         Err(err) => {
             println!("");
-            println!("{} {:?}", color_err(&"mzr error:"), err);
+            println!("{} {}", color_err(&"mzr error:"), err);
             exit(1);
         }
     }
+}
+
+/*
+ * "mzr daemon"
+ */
+
+fn daemon() -> Result<(), Error> {
+    let top_dirs = TopDirs::find_or_prompt_create("start mzr daemon")?;
+    daemon::run(&top_dirs.mzr_dir)
 }
 
 /*
@@ -120,16 +133,13 @@ fn shell(opts: ShellOpts) -> Result<(), Error> {
             Zone::create(&top_dirs.mzr_dir, &opts.zone_name, &snap_name)?
         }
     };
-    with_unshared_user_and_mount(|| {
-        zone.mount(&top_dirs.user_work_dir)?;
-        // Need to reset current directory after mount, because the
-        // inode has changed.
-        env::set_current_dir(&top_dirs.user_work_dir)?;
-        env::set_var("MZR_DIR", &top_dirs.mzr_dir);
-        env::set_var("MZR_ZONE", &opts.zone_name);
-        let void = execvp("bash")?
-        unreachable(void)
-    })
+    container::enter_daemon_space(&top_dirs.mzr_dir)?;
+    container::unshare_mount()?;
+    zone.bind_to(&top_dirs.user_work_dir)?;
+    env::set_current_dir(&top_dirs.user_work_dir)?;
+    env::set_var("MZR_DIR", &top_dirs.mzr_dir);
+    let void = execvp("bash")?;
+    unreachable(void)
 }
 
 /*
@@ -166,11 +176,14 @@ struct GoOpts {
 }
 
 fn go(opts: GoOpts) -> Result<(), Error> {
-    /*
-    let top_dirs = TopDirs::find_or_prompt_create("switch mzr zone")?;
-    let zone = Zone::load(&top_dirs.mzr_dir, &opts.zone_name);
-    */
-    Ok(())
+    let top_dirs = TopDirs::find("switch mzr zone")?;
+    let zone = Zone::load(&top_dirs.mzr_dir, &opts.zone_name)?;
+    // TODO: attempt to unmount old dir?  Would lead to a cleaner
+    // mount list and notify when things are being used.
+    //
+    // TODO: ensure that we're in a mzr shell and that this zone is
+    // mounted.
+    zone.bind_to(&top_dirs.user_work_dir)
 }
 
 /*
