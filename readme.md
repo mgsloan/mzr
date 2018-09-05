@@ -10,16 +10,16 @@ different processes see different worktree states.
 The main current goals are:
 
 * A `mzr shell` command, which starts a shell with its own mutable snapshot of
-  the repository (called a "mizer context").
+  the repository (called a "mizer zone").
 
 * A `mzr switch` command, which switches the current shell to a different mizer
-  context.
+  zone.
 
-* A `mzr run` command, which creates a temporary mizer context and runs a
+* A `mzr run` command, which creates a temporary mizer zone and runs a
   command within it. This way you can run a build and continue editing your
   files.
 
-* The different contexts should share the same git repository, rather than also
+* The different zones should share the same git repository, rather than also
   forking the repository state.  This can either use a mechanism like `git
   worktree`, or something like the old mechanism for
 
@@ -61,14 +61,14 @@ Here's a rough sketch of how this can be achieved:
 
   1. The workdir is unmounted. This can only work if the workdir isn't busy.
      Happily, emacs does not keep the workdir busy. When using my prototype
-     scripts, if you run emacs in a mizer shell, and switch contexts, emacs will
-     happily update the buffers to match the file state in the new context!
+     scripts, if you run emacs in a mizer shell, and switch zones, emacs will
+     happily update the buffers to match the file state in the new zone!
 
   2. The workdir is mounted with the proper overlayfs options.
 
 * `mzr run` works very similarly to `mzr shell`.  The main point of it is a UI
-  consideration - making it easy to make new contexts without needing a name.
-  These contexts wouldn't show up by default in listings of contexts unless you
+  consideration - making it easy to make new zones without needing a name.
+  These zones wouldn't show up by default in listings of zones unless you
   asked for them.  They might expire immediately after the task exits, or they
   might potentially be garbage collected after some expirey interval.
 
@@ -85,7 +85,7 @@ straightforward additions:
   - A related feature is keeping uncommitted / unstashed changes.  It should be
     possible to use mizer to keep uncommitted changes associated with a branch.
 
-* Usage of cgroups to limit the resource consumption of mizer contexts.  This
+* Usage of cgroups to limit the resource consumption of mizer zones.  This
   way you can limit the processor usage of a long running build, so that your
   other work is not impeded.
 
@@ -100,7 +100,7 @@ straightforward additions:
   would go in a shared lower layer, while build results go in the upper layer.
   This would require mechanisms similar to the "overlayfs snapshots" project.
 
-* It should be possible to have multiple mizer contexts open on different
+* It should be possible to have multiple mizer zones open on different
   subdirs in the same shell.
 
 * It should handle git submodules correctly and efficiently. Not trivial, but
@@ -183,7 +183,7 @@ There are numerous problems with this solution.  Here are a few:
 2. It doesn't remember the snapshot dir associated with a given work dir, so you
    need to remember the association.
 
-3. When you have multiple shells on the same mizer context mutating files
+3. When you have multiple shells on the same mizer zone mutating files
    simultaneously, overlayfs sometimes gets rather confused.  I think the
    solution to this is having the processes share mount namespace.
 
