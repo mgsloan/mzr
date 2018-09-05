@@ -1,4 +1,5 @@
 *.mzr/
 /notes.md
-/old/
 /old-code/
+/old/
+/target
