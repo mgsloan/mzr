@@ -7,7 +7,7 @@ use serde_json;
 use std::fs::File;
 use std::path::PathBuf;
 
-const VERSION_STRING: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JsonFile<T> {
@@ -23,7 +23,7 @@ pub struct WriterInfo {
 }
 
 pub fn write<T: Serialize>(path: &PathBuf, value: &T) -> Result<(), Error> {
-    Ok(serde_json::to_writer_pretty(
+    serde_json::to_writer_pretty(
         File::create(path)?,
         &JsonFile {
             contents: value,
@@ -33,7 +33,8 @@ pub fn write<T: Serialize>(path: &PathBuf, value: &T) -> Result<(), Error> {
                 update_time: Utc::now(),
             },
         },
-    )?)
+    )?;
+    Ok(())
 }
 
 pub fn read<T>(path: &PathBuf) -> Result<JsonFile<T>, Error>

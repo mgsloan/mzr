@@ -207,9 +207,9 @@ impl DaemonSocketFile {
 }
 
 impl ProcDir {
-    pub fn new(pid: &Pid) -> Self {
+    pub fn new(pid: Pid) -> Self {
         let mut dir_buf = PathBuf::from("/proc");
-        dir_buf.push(pid_t::from(pid.clone()).to_string());
+        dir_buf.push(pid_t::from(pid).to_string());
         ProcDir(dir_buf)
     }
 }

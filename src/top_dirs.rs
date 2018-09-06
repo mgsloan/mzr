@@ -104,6 +104,8 @@ fn current_dir() -> Result<PathBuf, Error> {
 fn find_git_repo(start_dir: &PathBuf) -> Option<UserWorkDir> {
     let mut cur = start_dir.clone();
     loop {
+        // Exit if there is no file name.
+        cur.file_name()?;
         cur.push(".git");
         // Note that this intentionally includes files, since ".git" files
         // are used for git work-trees.
@@ -113,8 +115,5 @@ fn find_git_repo(start_dir: &PathBuf) -> Option<UserWorkDir> {
         }
         cur.pop();
         cur.pop();
-        if cur.file_name().is_none() {
-            return None;
-        }
     }
 }

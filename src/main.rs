@@ -80,14 +80,14 @@ fn main() {
     let cmd = Cmd::from_args();
     let result = match cmd {
         Cmd::Daemon {} => daemon(),
-        Cmd::Shell { opts } => shell(opts),
-        Cmd::Snap { opts } => snap(opts),
-        Cmd::Go { opts } => go(opts),
+        Cmd::Shell { opts } => shell(&opts),
+        Cmd::Snap { opts } => snap(&opts),
+        Cmd::Go { opts } => go(&opts),
     };
     match result {
         Ok(()) => {}
         Err(err) => {
-            println!("");
+            println!();
             println!("{} {}", color_err(&"mzr error:"), err);
             exit(1);
         }
@@ -119,7 +119,7 @@ struct ShellOpts {
     snap_name: Option<SnapName>,
 }
 
-fn shell(opts: ShellOpts) -> Result<(), Error> {
+fn shell(opts: &ShellOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("enter mzr shell")?;
     let zone = match Zone::load_if_exists(&top_dirs.mzr_dir, &opts.zone_name)? {
         Some(zone) => zone,
@@ -156,7 +156,7 @@ struct SnapOpts {
     snap_name: Option<SnapName>,
 }
 
-fn snap(opts: SnapOpts) -> Result<(), Error> {
+fn snap(opts: &SnapOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("take mzr snapshot")?;
     let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
     println!("Taking a snapshot named {}", snap_name);
@@ -175,7 +175,7 @@ struct GoOpts {
     zone_name: ZoneName,
 }
 
-fn go(opts: GoOpts) -> Result<(), Error> {
+fn go(opts: &GoOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find("switch mzr zone")?;
     let zone = Zone::load(&top_dirs.mzr_dir, &opts.zone_name)?;
     // TODO: attempt to unmount old dir?  Would lead to a cleaner

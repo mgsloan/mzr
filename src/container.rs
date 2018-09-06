@@ -29,7 +29,8 @@ where
     // TODO(cleanup): Seems to me like from the glibc docs of clone, a stack for
     // the child should only be necessary if CLONE_VM is set.
     const STACK_SIZE: usize = 1024 * 1024;
-    let ref mut child_stack: [u8; STACK_SIZE] = [0; STACK_SIZE];
+    // let ref mut child_stack: [u8; STACK_SIZE] = [0; STACK_SIZE];
+    let child_stack: &mut [u8; STACK_SIZE] = &mut [0; STACK_SIZE];
 
     let (parent_server, parent_name) = init_ipc()?;
     let child_pid =
@@ -44,7 +45,7 @@ where
                     // Exited successfully.
                     Ok(()) => 0,
                     Err(err) => {
-                        println!("");
+                        println!();
                         println!("{} {}", color_err(&"mzr child error:"), err);
                         1
                     }
@@ -126,22 +127,22 @@ fn init_ipc() -> Result<(IpcOneShotServer<IpcSender<Ready>>, String), Error> {
 // contents.  Is there a cleaner way to do something like this?
 
 fn send_ready(parent_server: IpcOneShotServer<IpcSender<Ready>>) -> Result<(), Error> {
-    wrap_ipc((|| {
+    wrap_ipc({
         let (_, tx1): (_, IpcSender<Ready>) = parent_server.accept()?;
         tx1.send(Ready)?;
         Ok(())
-    })())
+    })
 }
 
-fn recv_ready(parent_name: &String) -> Result<(), Error> {
-    wrap_ipc((|| {
+fn recv_ready(parent_name: &str) -> Result<(), Error> {
+    wrap_ipc({
         // Establish a connection with the parent.
         let (tx1, rx1): (IpcSender<Ready>, IpcReceiver<Ready>) = ipc::channel()?;
         let tx0 = IpcSender::connect(parent_name.to_string())?;
         tx0.send(tx1)?;
         let Ready = rx1.recv()?;
         Ok(())
-    })())
+    })
 }
 
 fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
@@ -150,7 +151,7 @@ fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
 
 // UID mapping helper functions
 fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
-    wrap_user_mapping((|| {
+    wrap_user_mapping({
         // Map current user to root within the user namespace.
         let uid_map_path = format!("/proc/{}/uid_map", child_pid);
         let mut uid_map_file = OpenOptions::new().write(true).open(uid_map_path)?;
@@ -167,7 +168,7 @@ fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
         let mut gid_map_file = OpenOptions::new().write(true).open(gid_map_path)?;
         gid_map_file.write_all(format!("0 {} 1\n", unistd::Gid::current()).as_bytes())?;
         Ok(())
-    })())
+    })
 }
 
 // TODO(cleanup)
@@ -178,28 +179,29 @@ fn wrap_user_mapping<T>(x: Result<T, Error>) -> Result<T, Error> {
 }
 
 pub fn enter_daemon_space(mzr_dir: &MzrDir) -> Result<(), Error> {
-    enter_container(&parse_pid_file(DaemonPidFile::new(&DaemonDir::new(
+    enter_container(parse_pid_file(DaemonPidFile::new(&DaemonDir::new(
         &mzr_dir,
     )))?)
 }
 
 pub fn unshare_mount() -> Result<(), Error> {
-    Ok(unshare(CloneFlags::CLONE_NEWNS)?)
+    unshare(CloneFlags::CLONE_NEWNS)?;
+    Ok(())
 }
 
-fn enter_container(pid: &unistd::Pid) -> Result<(), Error> {
-    let proc_dir = ProcDir::new(&pid);
+fn enter_container(pid: unistd::Pid) -> Result<(), Error> {
+    let proc_dir = ProcDir::new(pid);
     enter_ns(
-        ProcNamespaceFile::new_user(&proc_dir),
+        &ProcNamespaceFile::new_user(&proc_dir),
         CloneFlags::CLONE_NEWUSER,
     )?;
     enter_ns(
-        ProcNamespaceFile::new_mount(&proc_dir),
+        &ProcNamespaceFile::new_mount(&proc_dir),
         CloneFlags::CLONE_NEWNS,
     )
 }
 
-fn enter_ns(ns_path: ProcNamespaceFile, flags: CloneFlags) -> Result<(), Error> {
+fn enter_ns(ns_path: &ProcNamespaceFile, flags: CloneFlags) -> Result<(), Error> {
     // TODO(cleanup): make daemon_cmd a constant.
     let daemon_cmd_str = String::from("mzr daemon");
     let daemon_cmd = color_cmd(&daemon_cmd_str);

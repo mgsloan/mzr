@@ -24,7 +24,7 @@ pub fn confirm(query: &str) -> Result<Confirmed, Error> {
     io::stdin()
         .read_line(&mut input)
         .context("Could not read stdin.")?;
-    match input.trim_right_matches("\n") {
+    match input.trim_right_matches('\n') {
         "y" => Ok(Confirmed::Yes),
         "n" => Ok(Confirmed::No),
         other => Err(UnexpectedConfirmInput(other.to_string()).into()),
@@ -72,9 +72,9 @@ pub fn execvp(cmd: &str) -> Result<Void, Error> {
         "Failed to convert command named {} to C string",
         cmd
     ))?;
-    unistd::execvp(&cmd_cstring, &[]).context(format!(
+    unistd::execvp(&cmd_cstring, &[]).context(
         "Failed to execute bash. Is it in a directory listed in your PATH environment variable?"
-    ))?;
+    )?;
     panic!("Impossible: execvp returned without an error code")
 }
 

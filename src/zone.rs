@@ -79,7 +79,7 @@ impl Zone {
                 snap_dir
             );
         }
-        let zone_parent = zone_dir.parent().ok_or(format_err!(
+        let zone_parent = zone_dir.parent().ok_or_else(|| format_err!(
             "Unexpected error: zone directory must have a parent."
         ))?;
         create_dir_all(zone_parent).context(format_err!(
