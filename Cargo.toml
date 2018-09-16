@@ -2,6 +2,7 @@
 name = "mzr"
 version = "0.1.0"
 authors = ["Michael Sloan <mgsloan@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 chrono = { version = "0.4.5", features = ["serde"] }
@@ -19,4 +20,3 @@ shrinkwraprs = "0.2.0"
 structopt = "0.2.10"
 void = "1.0.2"
 yansi = "0.4.0"
-proc-macro2 = { version = "0.4.9", features = ["nightly"] }

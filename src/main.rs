@@ -1,7 +1,7 @@
 #![feature(const_vec_new)]
 #![feature(uniform_paths)]
-#![feature(rust_2018_preview)]
 #![warn(rust_2018_idioms)]
+
 // Allowing these makes prototyping convenient.
 //
 // TODO(cleanup): remove once that phase is done.
@@ -11,24 +11,9 @@
 #[macro_use]
 extern crate failure;
 #[macro_use]
-extern crate failure_derive;
-#[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate shrinkwraprs;
-#[macro_use]
-extern crate structopt;
-
-extern crate chrono;
-extern crate daemonize;
-extern crate ipc_channel;
-extern crate libmount;
-extern crate nix;
-extern crate semver;
-extern crate serde;
-extern crate serde_json;
-extern crate void;
-extern crate yansi;
 
 use failure::Error;
 use std::env;
