@@ -79,9 +79,9 @@ impl Zone {
                 snap_dir
             );
         }
-        let zone_parent = zone_dir.parent().ok_or_else(|| format_err!(
-            "Unexpected error: zone directory must have a parent."
-        ))?;
+        let zone_parent = zone_dir
+            .parent()
+            .ok_or_else(|| format_err!("Unexpected error: zone directory must have a parent."))?;
         create_dir_all(zone_parent).context(format_err!(
             "Unexpected error while creating zone parent directory {}",
             color_dir(&zone_parent.display())
@@ -157,10 +157,10 @@ impl Zone {
             &self.ovfs_work_dir,
             &self.ovfs_mount_dir,
         ).mount()
-            // TODO(cleanup): Should make it so that '?' can be used,
-            // by making libmount Error implement Sync. Same pattern
-            // repeated below for bind mount.
-            .map_err(|e| format_err!("{}", e))
+        // TODO(cleanup): Should make it so that '?' can be used,
+        // by making libmount Error implement Sync. Same pattern
+        // repeated below for bind mount.
+        .map_err(|e| format_err!("{}", e))
     }
 
     pub fn bind_to(&self, user_work_dir: &UserWorkDir) -> Result<(), Error> {

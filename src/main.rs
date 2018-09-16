@@ -64,12 +64,18 @@ enum Cmd {
         #[structopt(flatten)]
         opts: ShellOpts,
     },
-    #[structopt(name = "snap", about = "Create mzr snapshot of working directory")]
+    #[structopt(
+        name = "snap",
+        about = "Create mzr snapshot of working directory"
+    )]
     Snap {
         #[structopt(flatten)]
         opts: SnapOpts,
     },
-    #[structopt(name = "go", about = "Switch working directory to a different zone")]
+    #[structopt(
+        name = "go",
+        about = "Switch working directory to a different zone"
+    )]
     Go {
         #[structopt(flatten)]
         opts: GoOpts,
@@ -89,6 +95,7 @@ fn main() {
         Err(err) => {
             println!();
             println!("{} {}", color_err(&"mzr error:"), err);
+            println!("Debug: {:?}", err);
             exit(1);
         }
     }
@@ -109,7 +116,10 @@ fn daemon() -> Result<(), Error> {
 
 #[derive(StructOpt, Debug)]
 struct ShellOpts {
-    #[structopt(name = "ZONE_NAME", help = "Name of the zone to load or create.")]
+    #[structopt(
+        name = "ZONE_NAME",
+        help = "Name of the zone to load or create."
+    )]
     zone_name: ZoneName,
     #[structopt(
         name = "SNAP_NAME",

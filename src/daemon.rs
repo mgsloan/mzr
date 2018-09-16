@@ -7,9 +7,9 @@ use std::thread;
 use std::time;
 use yansi::Paint;
 
+use colors::*;
 use container;
 use zone::Zone;
-use colors::*;
 
 pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
     let _pid = container::with_unshared_user_and_mount(|| {

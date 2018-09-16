@@ -16,9 +16,9 @@ fn create(source_dir: &PathBuf, mzr_dir: &MzrDir, snap_name: &SnapName) -> Resul
         // TODO(friendliness): Should suggest "mzr rm" feature once it exists.
         bail!("A snapshot named {} already exists.", snap_name);
     }
-    let snap_parent = snap_dir.parent().ok_or_else(|| format_err!(
-        "Unexpected error: snapshot directory must have a parent."
-    ))?;
+    let snap_parent = snap_dir
+        .parent()
+        .ok_or_else(|| format_err!("Unexpected error: snapshot directory must have a parent."))?;
     create_dir_all(snap_parent).context(format_err!(
         "Unexpected error while creating snapshot parent directory {}",
         color_dir(&snap_parent.display())

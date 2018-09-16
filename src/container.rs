@@ -33,28 +33,27 @@ where
     let child_stack: &mut [u8; STACK_SIZE] = &mut [0; STACK_SIZE];
 
     let (parent_server, parent_name) = init_ipc()?;
-    let child_pid =
-        ::nix::sched::clone(
-            Box::new(|| {
-                // Wait for ready message that UID mapping has been setup before
-                // running child_fn. Otherwise, mounting will fail. Also, if the
-                // child process attempts to exec before the UID mapping has been
-                // setup, then the child will lose its capabilities (see
-                // "capabilities(7)" man page).
-                match recv_ready(&parent_name).and(child_fn()) {
-                    // Exited successfully.
-                    Ok(()) => 0,
-                    Err(err) => {
-                        println!();
-                        println!("{} {}", color_err(&"mzr child error:"), err);
-                        1
-                    }
+    let child_pid = ::nix::sched::clone(
+        Box::new(|| {
+            // Wait for ready message that UID mapping has been setup before
+            // running child_fn. Otherwise, mounting will fail. Also, if the
+            // child process attempts to exec before the UID mapping has been
+            // setup, then the child will lose its capabilities (see
+            // "capabilities(7)" man page).
+            match recv_ready(&parent_name).and(child_fn()) {
+                // Exited successfully.
+                Ok(()) => 0,
+                Err(err) => {
+                    println!();
+                    println!("{} {}", color_err(&"mzr child error:"), err);
+                    1
                 }
-            }),
-            child_stack,
-            clone_flags,
-            None,
-        ).context("Error while cloning mzr child with unshared user and mount namespaces.")?;
+            }
+        }),
+        child_stack,
+        clone_flags,
+        None,
+    ).context("Error while cloning mzr child with unshared user and mount namespaces.")?;
 
     // Map the current user to root within the child process.
     map_user_to_root(child_pid)?;
@@ -66,7 +65,7 @@ where
 
 pub fn with_unshared_user_and_mount_wait_exit<F>(child_fn: F) -> Result<(), Error>
 where
-        F: FnMut() -> Result<(), Error>
+    F: FnMut() -> Result<(), Error>,
 {
     let child_pid = with_unshared_user_and_mount(child_fn)?;
 
@@ -75,15 +74,11 @@ where
     thread::sleep(time::Duration::from_millis(100));
 
     match waitpid(child_pid, None) {
-        Err(e @ Sys(Errno::ECHILD)) => {
-            Err(e).context("Failed to find mzr child after fork.")?
-        }
+        Err(e @ Sys(Errno::ECHILD)) => Err(e).context("Failed to find mzr child after fork.")?,
         Err(e @ Sys(Errno::EINTR)) => {
             Err(e).context("Waiting for mzr child interrupted by signal.")?
         }
-        Err(e @ Sys(Errno::EINVAL)) => {
-            Err(e).context("Impossible: waitpid was called wrong.")?
-        }
+        Err(e @ Sys(Errno::EINVAL)) => Err(e).context("Impossible: waitpid was called wrong.")?,
         Err(e) => Err(e).context("Unexpected error in waitpid.")?,
         Ok(Exited(_, status)) => {
             if status == 0 {
