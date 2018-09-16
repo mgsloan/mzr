@@ -1,7 +1,6 @@
 #![feature(const_vec_new)]
 #![feature(uniform_paths)]
 #![warn(rust_2018_idioms)]
-
 // Allowing these makes prototyping convenient.
 //
 // TODO(cleanup): remove once that phase is done.
@@ -14,12 +13,6 @@ extern crate failure;
 extern crate serde_derive;
 #[macro_use]
 extern crate shrinkwraprs;
-
-use failure::Error;
-use std::env;
-use std::process::exit;
-use structopt::StructOpt;
-use void::unreachable;
 
 mod colors;
 mod container;
@@ -37,6 +30,11 @@ use crate::paths::{SnapName, ZoneName};
 use crate::top_dirs::TopDirs;
 use crate::utils::execvp;
 use crate::zone::Zone;
+use failure::Error;
+use std::env;
+use std::process::exit;
+use structopt::StructOpt;
+use void::unreachable;
 
 /*
  * CLI options enum and main entrypoint
