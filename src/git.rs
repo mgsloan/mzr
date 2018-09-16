@@ -170,7 +170,7 @@ pub enum GitError {
 }
 
 impl fmt::Display for GitError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             GitError::NotFound => write!(f, "'git' not found on your PATH environment variable."),
             GitError::TooOld(v) => write!(

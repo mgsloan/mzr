@@ -1,6 +1,7 @@
 #![feature(const_vec_new)]
-#![feature(rust_2018_preview)]
 #![feature(uniform_paths)]
+#![feature(rust_2018_preview)]
+#![warn(rust_2018_idioms)]
 // Allowing these makes prototyping convenient.
 //
 // TODO(cleanup): remove once that phase is done.

@@ -453,97 +453,97 @@ impl AsRef<OsStr> for SnapName {
 }
 
 impl Display for MzrDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for UserWorkDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for ZoneDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for ZoneInfoFile {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for SnapDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for OvfsChangesDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for OvfsWorkDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for OvfsMountDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for DaemonDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for DaemonPidFile {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for DaemonLogFile {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for DaemonSocketFile {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for ProcDir {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for ProcNamespaceFile {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }
 }
 
 impl Display for ZoneName {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_zone_name(&self.0).fmt(f)
     }
 }
 
 impl Display for SnapName {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_snap_name(&self.0).fmt(f)
     }
 }
