@@ -117,6 +117,9 @@ struct ShellOpts {
 
 fn shell(opts: &ShellOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("enter mzr shell")?;
+    let pid = daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
+    Ok(())
+    /*
     let zone = match Zone::load_if_exists(&top_dirs.mzr_dir, &opts.zone_name)? {
         Some(zone) => zone,
         None => {
@@ -136,6 +139,7 @@ fn shell(opts: &ShellOpts) -> Result<(), Error> {
     env::set_var("MZR_DIR", &top_dirs.mzr_dir);
     let void = execvp("bash")?;
     unreachable(void)
+    */
 }
 
 /*
