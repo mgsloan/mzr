@@ -1,4 +1,5 @@
-use colors::*;
+use crate::colors::*;
+use crate::utils::add_suffix_to_path;
 use failure::Error;
 use nix::libc::pid_t;
 use nix::unistd::Pid;
@@ -7,7 +8,6 @@ use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use utils::add_suffix_to_path;
 
 /// Path to the mzr directory - typically something like `.../PROJECT.mzr`, a
 /// sibling of `.../PROJECT`.

@@ -1,9 +1,9 @@
+use crate::paths::{MzrDir, UserWorkDir};
+use crate::utils::{confirm, Confirmed};
 use failure::{Error, ResultExt};
-use paths::{MzrDir, UserWorkDir};
 use std::env;
 use std::fs::create_dir_all;
 use std::path::PathBuf;
-use utils::{confirm, Confirmed};
 
 #[derive(Debug, Clone)]
 pub struct TopDirs {

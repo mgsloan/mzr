@@ -1,10 +1,10 @@
-use colors::*;
+use crate::colors::*;
+use crate::paths::*;
+use crate::top_dirs::TopDirs;
 use failure::{Error, ResultExt};
-use paths::*;
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use top_dirs::TopDirs;
 
 pub fn of_workdir(top_dirs: &TopDirs, snap_name: &SnapName) -> Result<SnapDir, Error> {
     create(&top_dirs.user_work_dir, &top_dirs.mzr_dir, snap_name)

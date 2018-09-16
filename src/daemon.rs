@@ -1,15 +1,14 @@
+use crate::colors::*;
+use crate::container;
+use crate::paths::*;
+use crate::zone::Zone;
 use daemonize::Daemonize;
 use failure::Error;
-use paths::*;
 use std::fs::{create_dir_all, read_dir, File};
 use std::path::PathBuf;
 use std::thread;
 use std::time;
 use yansi::Paint;
-
-use colors::*;
-use container;
-use zone::Zone;
 
 pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
     let _pid = container::with_unshared_user_and_mount(|| {

@@ -1,13 +1,12 @@
+use crate::colors::*;
+use crate::paths::{SnapName, UserWorkDir};
+use crate::utils::strip_prefix;
 use failure::{Error, ResultExt};
 use semver::Version;
 use std::env;
 use std::fmt;
 use std::io::ErrorKind;
 use std::process::{Command, ExitStatus, Stdio};
-
-use colors::*;
-use paths::{SnapName, UserWorkDir};
-use utils::strip_prefix;
 
 pub fn default_snap_name(work_dir: &UserWorkDir) -> Result<SnapName, Error> {
     match current_ref_or_short_sha(&work_dir) {

@@ -1,3 +1,4 @@
+use crate::colors::*;
 use failure::{Error, Fail, ResultExt};
 use nix::unistd;
 use std::ffi::CString;
@@ -8,8 +9,6 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use void::Void;
-
-use colors::*;
 
 /*
  * Console utilities

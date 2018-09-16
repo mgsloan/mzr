@@ -1,4 +1,6 @@
 #![feature(const_vec_new)]
+#![feature(rust_2018_preview)]
+#![feature(uniform_paths)]
 // Allowing these makes prototyping convenient.
 //
 // TODO(cleanup): remove once that phase is done.
@@ -44,11 +46,11 @@ mod top_dirs;
 mod utils;
 mod zone;
 
-use colors::color_err;
-use paths::{SnapName, ZoneName};
-use top_dirs::TopDirs;
-use utils::execvp;
-use zone::Zone;
+use crate::colors::color_err;
+use crate::paths::{SnapName, ZoneName};
+use crate::top_dirs::TopDirs;
+use crate::utils::execvp;
+use crate::zone::Zone;
 
 /*
  * CLI options enum and main entrypoint

@@ -1,3 +1,6 @@
+use crate::colors::*;
+use crate::paths::*;
+use crate::utils::parse_pid_file;
 use failure::{Error, ResultExt};
 use ipc_channel::ipc::{self, IpcOneShotServer, IpcReceiver, IpcSender};
 use nix::errno::Errno;
@@ -11,10 +14,6 @@ use std::io::Write;
 use std::os::unix::io::IntoRawFd;
 use std::{thread, time};
 use yansi::Paint;
-
-use colors::*;
-use paths::*;
-use utils::parse_pid_file;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Ready;

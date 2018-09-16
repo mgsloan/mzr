@@ -1,12 +1,11 @@
 use chrono::{DateTime, Utc};
+use crate::colors::color_dir;
+use crate::json;
+use crate::paths::*;
 use failure::{Error, ResultExt};
 use libmount::{BindMount, Overlay};
 use std::fs::{create_dir, create_dir_all};
 use std::iter;
-
-use colors::color_dir;
-use json;
-use paths::*;
 
 #[derive(Debug)]
 pub struct Zone {
