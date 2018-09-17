@@ -7,12 +7,9 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
+// TODO(cleanup): figure out how to remove this
 #[macro_use]
 extern crate failure;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate shrinkwraprs;
 
 mod colors;
 mod container;

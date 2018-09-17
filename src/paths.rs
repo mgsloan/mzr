@@ -3,6 +3,8 @@ use crate::utils::add_suffix_to_path;
 use failure::Error;
 use nix::libc::pid_t;
 use nix::unistd::Pid;
+use serde_derive::{Deserialize, Serialize};
+use shrinkwraprs::Shrinkwrap;
 use std::convert::AsRef;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};

@@ -3,6 +3,7 @@ use failure::Error;
 use semver::Version;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use std::fs::File;
 use std::path::PathBuf;
