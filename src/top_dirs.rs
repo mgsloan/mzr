@@ -11,11 +11,6 @@ pub struct TopDirs {
     pub user_work_dir: UserWorkDir,
 }
 
-// FIXME: mzr dir should probably be something like
-// ~/.mzr/WORK-1a2b3c/ where WORK is a short name for the dir, and the
-// rest is a short sha for the path.  Or maybe it's folly to try to
-// associate snapshots with projects via absolute path? Hmm
-
 impl TopDirs {
     pub fn find(action: &str) -> Result<TopDirs, Error> {
         match TopDirs::find_impl(&current_dir()?) {
