@@ -86,41 +86,75 @@ pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
     Ok(())
 }
 
+/*
+ * Types for daemon <==> client communication
+ */
+
 // TODO(correctness): Handshake should enforce version match
-//
-// TODO(correctness): Session types? :) Might be overkill
 
 #[derive(Debug, Serialize, Deserialize)]
-enum DaemonRequest {
+enum Request {
     ZonePid(ZoneName),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum DaemonResponse {
+enum Response {
     ZonePid(ZonePid),
     Error(String),
 }
 
+/*
+ * Handler for a client connection
+ */
+
 fn handle_client(stream: UnixStream) -> Result<(), Error> {
+    let result: Result<Response, Error> = try {
+        match recv_request(&stream)? {
+            Request::ZonePid(name) => {
+                Response::Error(String::from("fixme"))
+            }
+        }
+    };
+    send_response(&stream, &match result {
+        Ok(x) => x,
+        Err(e) => Response::Error(format!("Unexpected error: {}", e)),
+    })
+}
+
+/*
+ * Functions for daemon receiving requests and sending responses.
+ */
+
+fn recv_request(stream: &UnixStream) -> Result<Request, Error> {
     let mut data = Vec::new();
-    let mut reader = BufReader::new(&stream);
+    let mut reader = BufReader::new(stream);
     reader.read_until(b'\n', &mut data)?;
-    let request: DaemonRequest = serde_json::from_slice(&data)?;
+    let request: Request = serde_json::from_slice(&data)?;
     println!("==> {:?}", request);
-    let response = DaemonResponse::Error(String::from("works!"));
-    serde_json::to_writer(&stream, &response)?;
+    Ok(request)
+}
+
+fn send_response(stream: &UnixStream, response: &Response) -> Result<(), Error> {
+    serde_json::to_writer(stream, &response)?;
     println!("<== {:?}", response);
     Ok(())
 }
 
-pub fn get_zone_process(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<ZonePid, Error> {
-    match send_to_daemon(mzr_dir, &DaemonRequest::ZonePid(zone_name.clone()))? {
-        DaemonResponse::ZonePid(p) => Ok(p),
-        x => bail!("Unexpected daemon response: {:?}", x),
-    }
+/*
+ * Functions for client sending requests and receiving responses.
+ */
+
+fn send_request(mut stream: &UnixStream, request: &Request) -> Result<(), Error> {
+    serde_json::to_writer(stream, request)?;
+    stream.write_all(b"\n")?;
+    Ok(())
 }
 
-fn send_to_daemon(mzr_dir: &MzrDir, request: &DaemonRequest) -> Result<DaemonResponse, Error> {
+fn recv_response(stream: &UnixStream) -> Result<Response, Error> {
+    Ok(serde_json::from_reader(stream)?)
+}
+
+fn send_to_daemon(mzr_dir: &MzrDir, request: &Request) -> Result<Response, Error> {
     let daemon_dir = DaemonDir::new(&mzr_dir);
     let socket_path = DaemonSocketFile::new(&daemon_dir);
     if !socket_path.exists() {
@@ -130,11 +164,18 @@ fn send_to_daemon(mzr_dir: &MzrDir, request: &DaemonRequest) -> Result<DaemonRes
             socket_path
         );
     }
-    let mut stream = UnixStream::connect(socket_path).context(format_err!(
+    let stream = UnixStream::connect(socket_path).context(format_err!(
         "Failed to connect to {}. Is it running?",
         color_cmd(&String::from("mzr daemon"))
     ))?;
-    serde_json::to_writer(&stream, &request)?;
-    stream.write_all(b"\n")?;
-    Ok(serde_json::from_reader(&stream)?)
+    send_request(&stream, request)?;
+    recv_response(&stream)
+}
+
+
+pub fn get_zone_process(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<ZonePid, Error> {
+    match send_to_daemon(mzr_dir, &Request::ZonePid(zone_name.clone()))? {
+        Response::ZonePid(p) => Ok(p),
+        Response::Error(e) => bail!("Response from daemon was {:?}", e),
+    }
 }

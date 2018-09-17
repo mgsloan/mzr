@@ -1,3 +1,4 @@
+#![feature(try_blocks)]
 #![feature(const_vec_new)]
 #![feature(uniform_paths)]
 #![warn(rust_2018_idioms)]
