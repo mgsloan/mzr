@@ -92,7 +92,7 @@ where
 {
     let child_pid = with_unshared_user_and_mount(child_fn)?;
 
-    // FIXME: Why is this necessary??  Should do something
+    // TODO(correctness): Why is this necessary??  Should do something
     // more reliable.
     thread::sleep(time::Duration::from_millis(100));
 
