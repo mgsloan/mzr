@@ -233,10 +233,7 @@ fn send_to_daemon(mzr_dir: &MzrDir, request: &Request) -> Result<Response, Error
         color_cmd(&String::from("mzr daemon"))
     ))?;
     send_request(&stream, request)?;
-    println!("Sent request");
-    let resp = recv_response(&stream)?;
-    println!("Got response");
-    Ok(resp)
+    recv_response(&stream)
 }
 
 pub fn get_zone_process(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<ZonePid, Error> {
