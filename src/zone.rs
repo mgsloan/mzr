@@ -49,6 +49,10 @@ impl Zone {
         }
     }
 
+    pub fn exists(mzr_dir: &MzrDir, zone_name: &ZoneName) -> bool {
+        ZoneDir::new(mzr_dir, &zone_name).is_dir()
+    }
+
     pub fn load_or_create<F>(
         mzr_dir: &MzrDir,
         zone_name: &ZoneName,

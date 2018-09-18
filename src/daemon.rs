@@ -24,7 +24,7 @@ pub struct DaemonPid(pid_t);
 pub struct ZonePid(pid_t);
 
 impl ZonePid {
-    pub fn to_pid(self) -> Pid {
+    pub fn to_pid(&self) -> Pid {
         Pid::from_raw(self.0)
     }
 }
@@ -118,7 +118,9 @@ fn handle_client(
                     Some(zone) => {
                         // Mount the zone's overlayfs in the daemon's namespace.
                         //
-                        // TODO: Ensure this propages to existing zone processes.
+                        // TODO: Looks like this does not yet
+                        // propagate to the mount namespaces of the
+                        // existing zone processes, but it needs to.
                         zone.mount()?;
                         // Fork a zone process which bind-mounts the
                         // zone to the user's working directory.
@@ -241,4 +243,16 @@ pub fn get_zone_process(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<ZonePi
         Response::ZoneProcess(p) => Ok(p),
         Response::Error(e) => bail!("Response from daemon was {:?}", e),
     }
+}
+
+/*
+ * Functions for entering zone process namespaces.
+ */
+
+pub fn enter_zone_process_mount(zone_pid: &ZonePid) -> Result<(), Error> {
+    namespaces::enter_mount(zone_pid.to_pid())
+}
+
+pub fn enter_zone_process_user_and_mount(zone_pid: &ZonePid) -> Result<(), Error> {
+    namespaces::enter_user_and_mount(zone_pid.to_pid())
 }

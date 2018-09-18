@@ -197,7 +197,7 @@ fn wrap_user_mapping<T>(x: Result<T, Error>) -> Result<T, Error> {
 }
 
 pub fn enter_daemon_space(mzr_dir: &MzrDir) -> Result<(), Error> {
-    enter_container(parse_pid_file(DaemonPidFile::new(&DaemonDir::new(
+    enter_user_and_mount(parse_pid_file(DaemonPidFile::new(&DaemonDir::new(
         &mzr_dir,
     )))?)
 }
@@ -207,7 +207,15 @@ pub fn unshare_mount() -> Result<(), Error> {
     Ok(())
 }
 
-fn enter_container(pid: unistd::Pid) -> Result<(), Error> {
+pub fn enter_mount(pid: unistd::Pid) -> Result<(), Error> {
+    let proc_dir = ProcDir::new(pid);
+    enter_ns(
+        &ProcNamespaceFile::new_mount(&proc_dir),
+        CloneFlags::CLONE_NEWNS,
+    )
+}
+
+pub fn enter_user_and_mount(pid: unistd::Pid) -> Result<(), Error> {
     let proc_dir = ProcDir::new(pid);
     enter_ns(
         &ProcNamespaceFile::new_user(&proc_dir),

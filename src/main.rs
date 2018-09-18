@@ -115,34 +115,26 @@ struct ShellOpts {
 
 fn shell(opts: &ShellOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("enter mzr shell")?;
-    let zone_pid = daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
-    zone_pid.to_pid();
-    Ok(())
-
-    /*
-    let zone = match Zone::load_if_exists(&top_dirs.mzr_dir, &opts.zone_name)? {
-        Some(zone) => zone,
-        None => {
-            let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
-            /* TODO(friendliness): What should the snapshot creation logic be?
-            println!("Taking a snapshot named {}", snap_name);
-            snapshot::create(&top_dirs.user_work_dir, &top_dirs.mzr_dir, &snap_name)?;
-            println!("Finished taking snapshot.");
-            */
-            Zone::create(&top_dirs.mzr_dir, &opts.zone_name, &snap_name)?
-        }
+    if !Zone::exists(&top_dirs.mzr_dir, &opts.zone_name) {
+        let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
+        /* TODO(friendliness): What should the snapshot creation logic be?
+        println!("Taking a snapshot named {}", snap_name);
+        snapshot::create(&top_dirs.user_work_dir, &top_dirs.mzr_dir, &snap_name)?;
+        println!("Finished taking snapshot.");
+        */
+        println!("Requested zone does not yet exist, so attempting to create it.");
+        Zone::create(&top_dirs.mzr_dir, &opts.zone_name, &snap_name)?;
     };
-    */
-
-    /*
-    namespaces::enter_daemon_space(&top_dirs.mzr_dir)?;
-    namespaces::unshare_mount()?;
-    zone.bind_to(&top_dirs.user_work_dir)?;
+    let zone_pid = daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
+    // TODO(usefulness): It would be better to not need to enter the
+    // user namespace, so that the user doesn't become root in the
+    // shell.  However, only entering the mount namespace seems to
+    // cause an EPERM.
+    daemon::enter_zone_process_user_and_mount(&zone_pid)?;
     env::set_current_dir(&top_dirs.user_work_dir)?;
     env::set_var("MZR_DIR", &top_dirs.mzr_dir);
     let void = execvp("bash")?;
     unreachable(void)
-    */
 }
 
 /*
