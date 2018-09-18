@@ -13,10 +13,10 @@
 extern crate failure;
 
 mod colors;
-mod container;
 mod daemon;
 mod git;
 mod json;
+mod namespaces;
 mod paths;
 mod snapshot;
 mod top_dirs;
@@ -135,8 +135,8 @@ fn shell(opts: &ShellOpts) -> Result<(), Error> {
     */
 
     /*
-    container::enter_daemon_space(&top_dirs.mzr_dir)?;
-    container::unshare_mount()?;
+    namespaces::enter_daemon_space(&top_dirs.mzr_dir)?;
+    namespaces::unshare_mount()?;
     zone.bind_to(&top_dirs.user_work_dir)?;
     env::set_current_dir(&top_dirs.user_work_dir)?;
     env::set_var("MZR_DIR", &top_dirs.mzr_dir);

@@ -1,6 +1,7 @@
 use crate::colors::*;
-use crate::container;
+use crate::namespaces;
 use crate::paths::*;
+use crate::top_dirs::TopDirs;
 use crate::zone::Zone;
 use daemonize::Daemonize;
 use failure::{Error, ResultExt};
@@ -15,7 +16,6 @@ use std::path::PathBuf;
 use std::thread;
 use std::time;
 use yansi::Paint;
-use crate::top_dirs::TopDirs;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DaemonPid(pid_t);
@@ -32,7 +32,7 @@ impl ZonePid {
 type ProcessMap = HashMap<ZoneName, ZonePid>;
 
 pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
-    let _pid = container::with_unshared_user_and_mount(|| {
+    let _pid = namespaces::with_unshared_user_and_mount(|| {
         let daemon_dir = DaemonDir::new(&top_dirs.mzr_dir);
         create_dir_all(&daemon_dir)?;
         // TODO(cleanup): Don't truncate old daemon logs?
@@ -155,7 +155,7 @@ fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Err
     // TODO(cleanup): mzr now has a few different takes on IPC, should
     // use a consistent style.
     let (server_stream, mut client_stream) = UnixStream::pair()?;
-    let pid = container::with_unshared_mount(|| {
+    let pid = namespaces::with_unshared_mount(|| {
         // TODO(cleanup): When the parent process exits, it should
         // close the pipe, which should cause the read to
         // exit. However, for some reason that didn't work.  Setting
@@ -173,7 +173,10 @@ fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Err
         // This should just blocks forever, since server_stream never
         // gets written to.
         let result = client_stream.read_to_end(&mut data);
-        println!("mzr zone process unexpectedly done blocking, result was {:?}", result);
+        println!(
+            "mzr zone process unexpectedly done blocking, result was {:?}",
+            result
+        );
         Ok(())
     })?;
     let mut data = Vec::new();
