@@ -19,19 +19,42 @@ use yansi::Paint;
 #[derive(Serialize, Deserialize, Debug)]
 struct Ready;
 
+// TODO(cleanup): Seems to me like from the glibc docs of clone, a stack for
+// the child should only be necessary if CLONE_VM is set.
+const STACK_SIZE: usize = 1024 * 1024;
+
+pub fn with_unshared_mount<F>(mut child_fn: F) -> Result<unistd::Pid, Error>
+where
+    F: FnMut() -> Result<(), Error>,
+{
+    let clone_flags = CloneFlags::CLONE_NEWNS;
+    let child_stack: &mut [u8; STACK_SIZE] = &mut [0; STACK_SIZE];
+    let child_pid = ::nix::sched::clone(
+        Box::new(|| {
+            match child_fn() {
+                // Exited successfully.
+                Ok(()) => 0,
+                Err(err) => {
+                    println!();
+                    println!("{} {}", color_err(&"mzr child error:"), err);
+                    1
+                }
+            }
+        }),
+        child_stack,
+        clone_flags,
+        None,
+    ).context("Error while cloning mzr child with unshared mount namespace.")?;
+    Ok(child_pid)
+}
+
 pub fn with_unshared_user_and_mount<F>(mut child_fn: F) -> Result<unistd::Pid, Error>
 where
     F: FnMut() -> Result<(), Error>,
 {
-    // new unshared mount namespace and a new unshared user namespace.
+    // clone with unshared mount and user namespaces.
     let clone_flags = CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWUSER;
-
-    // TODO(cleanup): Seems to me like from the glibc docs of clone, a stack for
-    // the child should only be necessary if CLONE_VM is set.
-    const STACK_SIZE: usize = 1024 * 1024;
-    // let ref mut child_stack: [u8; STACK_SIZE] = [0; STACK_SIZE];
     let child_stack: &mut [u8; STACK_SIZE] = &mut [0; STACK_SIZE];
-
     let (parent_server, parent_name) = init_ipc()?;
     let child_pid = ::nix::sched::clone(
         Box::new(|| {

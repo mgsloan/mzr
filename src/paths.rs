@@ -89,7 +89,7 @@ pub struct ProcNamespaceFile(PathBuf);
 /// Name of a zone.
 ///
 /// TODO(name-validation): document validation once it has that.
-#[derive(Debug, Clone, Shrinkwrap, Serialize, Deserialize)]
+#[derive(Debug, Clone, Shrinkwrap, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct ZoneName(String);
 
 /// Name of a snapshot.

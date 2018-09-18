@@ -91,7 +91,7 @@ fn main() {
 
 fn daemon() -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("start mzr daemon")?;
-    daemon::run(&top_dirs.mzr_dir)
+    daemon::run(&top_dirs)
 }
 
 /*
@@ -115,8 +115,10 @@ struct ShellOpts {
 
 fn shell(opts: &ShellOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("enter mzr shell")?;
-    let pid = daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
+    let zone_pid = daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
+    zone_pid.to_pid();
     Ok(())
+
     /*
     let zone = match Zone::load_if_exists(&top_dirs.mzr_dir, &opts.zone_name)? {
         Some(zone) => zone,
@@ -130,6 +132,9 @@ fn shell(opts: &ShellOpts) -> Result<(), Error> {
             Zone::create(&top_dirs.mzr_dir, &opts.zone_name, &snap_name)?
         }
     };
+    */
+
+    /*
     container::enter_daemon_space(&top_dirs.mzr_dir)?;
     container::unshare_mount()?;
     zone.bind_to(&top_dirs.user_work_dir)?;

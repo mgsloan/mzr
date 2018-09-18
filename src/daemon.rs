@@ -7,6 +7,7 @@ use failure::{Error, ResultExt};
 use libc::pid_t;
 use nix::unistd::Pid;
 use serde_derive::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::{create_dir_all, read_dir, remove_file, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -14,16 +15,25 @@ use std::path::PathBuf;
 use std::thread;
 use std::time;
 use yansi::Paint;
+use crate::top_dirs::TopDirs;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DaemonPid(pid_t);
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ZonePid(pid_t);
 
-pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
+impl ZonePid {
+    pub fn to_pid(self) -> Pid {
+        Pid::from_raw(self.0)
+    }
+}
+
+type ProcessMap = HashMap<ZoneName, ZonePid>;
+
+pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
     let _pid = container::with_unshared_user_and_mount(|| {
-        let daemon_dir = DaemonDir::new(&mzr_dir);
+        let daemon_dir = DaemonDir::new(&top_dirs.mzr_dir);
         create_dir_all(&daemon_dir)?;
         // TODO(cleanup): Don't truncate old daemon logs?
         let log_file = File::create(DaemonLogFile::new(&daemon_dir))?;
@@ -42,13 +52,16 @@ pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
                 socket_path
             ))?;
         }
+        // Mutable hashmap to track which child processes have been
+        // created.
+        let mut processes = HashMap::new();
         // Listen for client connections. In the future, perhaps tokio
         // or mio will be used, but for now using the lower level APIs
         // because they are simpler and have better documentation.
         let listener = UnixListener::bind(socket_path)?;
         for stream_or_err in listener.incoming() {
             let stream = stream_or_err?;
-            thread::spawn(|| match handle_client(stream) {
+            match handle_client(&top_dirs, stream, &mut processes) {
                 Ok(()) => (),
                 Err(err) => {
                     println!("");
@@ -58,7 +71,7 @@ pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
                     println!("Ignoring this and continuing daemon execution...");
                     println!("");
                 }
-            });
+            }
         }
         /*
         // Mount all zones
@@ -90,16 +103,16 @@ pub fn run(mzr_dir: &MzrDir) -> Result<(), Error> {
  * Types for daemon <==> client communication
  */
 
-// TODO(correctness): Handshake should enforce version match
+// TODO(correctness): Handshake should enforce version match.
 
 #[derive(Debug, Serialize, Deserialize)]
 enum Request {
-    ZonePid(ZoneName),
+    ZoneProcess(ZoneName),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 enum Response {
-    ZonePid(ZonePid),
+    ZoneProcess(ZonePid),
     Error(String),
 }
 
@@ -107,18 +120,74 @@ enum Response {
  * Handler for a client connection
  */
 
-fn handle_client(stream: UnixStream) -> Result<(), Error> {
+fn handle_client(
+    top_dirs: &TopDirs,
+    stream: UnixStream,
+    processes: &mut ProcessMap,
+) -> Result<(), Error> {
     let result: Result<Response, Error> = try {
         match recv_request(&stream)? {
-            Request::ZonePid(name) => {
-                Response::Error(String::from("fixme"))
-            }
+            Request::ZoneProcess(zone_name) => match processes.get(&zone_name) {
+                None => match Zone::load_if_exists(&top_dirs.mzr_dir, &zone_name)? {
+                    None => Response::Error(String::from("Zone does not exist")),
+                    Some(zone) => {
+                        let pid = fork_zone_process(&top_dirs.user_work_dir, &zone)?;
+                        processes.insert(zone_name, pid.clone());
+                        Response::ZoneProcess(pid)
+                    }
+                },
+                Some(pid) => Response::ZoneProcess(pid.clone()),
+            },
         }
     };
-    send_response(&stream, &match result {
-        Ok(x) => x,
-        Err(e) => Response::Error(format!("Unexpected error: {}", e)),
-    })
+    send_response(
+        &stream,
+        &match result {
+            Ok(x) => x,
+            Err(e) => Response::Error(format!("Unexpected error: {}", e)),
+        },
+    )
+}
+
+const READY_MSG: &[u8; 6] = b"ready\n";
+
+fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Error> {
+    // TODO(cleanup): mzr now has a few different takes on IPC, should
+    // use a consistent style.
+    let (server_stream, mut client_stream) = UnixStream::pair()?;
+    let pid = container::with_unshared_mount(|| {
+        // TODO(cleanup): When the parent process exits, it should
+        // close the pipe, which should cause the read to
+        // exit. However, for some reason that didn't work.  Setting
+        // PDEATHSIG seems to work, though.
+        unsafe {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
+                bail!("Failed to set PDEATHSIG");
+            }
+        }
+        // Bind mount zone over the user's work-dir.
+        zone.bind_to(work_dir)?;
+        // Indicate to parent process that the zone is ready.
+        client_stream.write_all(READY_MSG)?;
+        let mut data = Vec::new();
+        // This should just blocks forever, since server_stream never
+        // gets written to.
+        let result = client_stream.read_to_end(&mut data);
+        println!("mzr zone process unexpectedly done blocking, result was {:?}", result);
+        Ok(())
+    })?;
+    let mut data = Vec::new();
+    let mut reader = BufReader::new(server_stream);
+    reader.read_until(b'\n', &mut data)?;
+    if data != READY_MSG {
+        Err(format_err!(
+            "Didn't receive expected message from child process. Instead got {:?}",
+            data
+        ))
+    } else {
+        println!("Process forked");
+        Ok(ZonePid(pid_t::from(pid)))
+    }
 }
 
 /*
@@ -169,13 +238,15 @@ fn send_to_daemon(mzr_dir: &MzrDir, request: &Request) -> Result<Response, Error
         color_cmd(&String::from("mzr daemon"))
     ))?;
     send_request(&stream, request)?;
-    recv_response(&stream)
+    println!("Sent request");
+    let resp = recv_response(&stream)?;
+    println!("Got response");
+    Ok(resp)
 }
 
-
 pub fn get_zone_process(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<ZonePid, Error> {
-    match send_to_daemon(mzr_dir, &Request::ZonePid(zone_name.clone()))? {
-        Response::ZonePid(p) => Ok(p),
+    match send_to_daemon(mzr_dir, &Request::ZoneProcess(zone_name.clone()))? {
+        Response::ZoneProcess(p) => Ok(p),
         Response::Error(e) => bail!("Response from daemon was {:?}", e),
     }
 }
