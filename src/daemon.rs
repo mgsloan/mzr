@@ -158,8 +158,9 @@ fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Err
     let pid = namespaces::with_unshared_mount(|| {
         // TODO(cleanup): When the parent process exits, it should
         // close the pipe, which should cause the read to
-        // exit. However, for some reason that didn't work.  Setting
-        // PDEATHSIG seems to work, though.
+        // exit. However, for some reason that didn't work. Setting
+        // PDEATHSIG seems to work, though. It would be nicer to avoid
+        // this, though.
         unsafe {
             if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
                 bail!("Failed to set PDEATHSIG");
@@ -170,7 +171,7 @@ fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Err
         // Indicate to parent process that the zone is ready.
         client_stream.write_all(READY_MSG)?;
         let mut data = Vec::new();
-        // This should just blocks forever, since server_stream never
+        // This should just block forever, since server_stream never
         // gets written to.
         let result = client_stream.read_to_end(&mut data);
         println!(
