@@ -73,21 +73,6 @@ pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
                 }
             }
         }
-        /*
-        // Mount all zones
-        let mzr_dir_buf: &PathBuf = mzr_dir.as_ref();
-        let mut zone_parent_dir = mzr_dir_buf.clone();
-        zone_parent_dir.push("zone");
-        for entry in read_dir(zone_parent_dir)? {
-            let zone_name = ZoneName::new(entry?.file_name().into_string().unwrap())?;
-            let zone = Zone::load(&mzr_dir, &zone_name)?;
-            println!("Mounting overlay for zone named {}", zone_name);
-            zone.mount()?;
-        }
-        // FIXME: Obviously this will need to change
-        println!("Sleeping for an hour...");
-        thread::sleep(time::Duration::from_secs(60 * 60));
-        */
         Ok(())
     })?;
     // TODO(friendliness): Include this output, but only do it when
@@ -131,6 +116,12 @@ fn handle_client(
                 None => match Zone::load_if_exists(&top_dirs.mzr_dir, &zone_name)? {
                     None => Response::Error(String::from("Zone does not exist")),
                     Some(zone) => {
+                        // Mount the zone's overlayfs in the daemon's namespace.
+                        //
+                        // TODO: Ensure this propages to existing zone processes.
+                        zone.mount()?;
+                        // Fork a zone process which bind-mounts the
+                        // zone to the user's working directory.
                         let pid = fork_zone_process(&top_dirs.user_work_dir, &zone)?;
                         processes.insert(zone_name, pid.clone());
                         Response::ZoneProcess(pid)
