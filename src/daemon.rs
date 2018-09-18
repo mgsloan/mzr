@@ -189,7 +189,7 @@ fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Err
             data
         ))
     } else {
-        println!("Process forked");
+        println!("Zone process forked for zone named \"{}\"", zone.name);
         Ok(ZonePid(pid_t::from(pid)))
     }
 }
