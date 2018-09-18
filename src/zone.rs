@@ -10,6 +10,7 @@ use std::iter;
 
 #[derive(Debug)]
 pub struct Zone {
+    pub name: ZoneName,
     pub zone_dir: ZoneDir,
     pub snap_dir: SnapDir,
     pub ovfs_changes_dir: OvfsChangesDir,
@@ -36,13 +37,13 @@ impl Zone {
 
     pub fn load(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<Zone, Error> {
         let zone_dir = ZoneDir::new(mzr_dir, &zone_name);
-        Zone::load_impl(mzr_dir, &zone_dir)
+        Zone::load_impl(mzr_dir, &zone_dir, &zone_name)
     }
 
     pub fn load_if_exists(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<Option<Zone>, Error> {
         let zone_dir = ZoneDir::new(mzr_dir, &zone_name);
         if zone_dir.is_dir() {
-            Ok(Some(Zone::load_impl(mzr_dir, &zone_dir)?))
+            Ok(Some(Zone::load_impl(mzr_dir, &zone_dir, &zone_name)?))
         } else {
             Ok(None)
         }
@@ -58,7 +59,7 @@ impl Zone {
     {
         let zone_dir = ZoneDir::new(mzr_dir, &zone_name);
         if zone_dir.is_dir() {
-            Zone::load_impl(mzr_dir, &zone_dir)
+            Zone::load_impl(mzr_dir, &zone_dir, &zone_name)
         } else {
             let snap_name = get_snap_name()?;
             Zone::create_impl(mzr_dir, &zone_dir, zone_name, &snap_name)
@@ -123,6 +124,7 @@ impl Zone {
                 };
                 json::write(&ZoneInfoFile::new(&zone_dir), &info)?;
                 Ok(Zone {
+                    name: zone_name.clone(),
                     zone_dir: zone_dir.clone(),
                     snap_dir,
                     ovfs_changes_dir,
@@ -134,13 +136,14 @@ impl Zone {
         }
     }
 
-    pub fn load_impl(mzr_dir: &MzrDir, zone_dir: &ZoneDir) -> Result<Zone, Error> {
+    pub fn load_impl(mzr_dir: &MzrDir, zone_dir: &ZoneDir, zone_name: &ZoneName) -> Result<Zone, Error> {
         let info: ZoneInfo = json::read(&ZoneInfoFile::new(&zone_dir))?.contents;
         let snap_dir = SnapDir::new(mzr_dir, &info.snapshot);
         let ovfs_changes_dir = OvfsChangesDir::new(zone_dir);
         let ovfs_work_dir = OvfsWorkDir::new(zone_dir);
         let ovfs_mount_dir = OvfsMountDir::new(zone_dir);
         Ok(Zone {
+            name: zone_name.clone(),
             zone_dir: zone_dir.clone(),
             snap_dir,
             ovfs_changes_dir,
