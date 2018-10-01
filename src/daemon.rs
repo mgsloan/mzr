@@ -9,6 +9,7 @@ use libc::pid_t;
 use nix::unistd::Pid;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::{self, Display, Formatter};
 use std::fs::{create_dir_all, read_dir, remove_file, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -26,6 +27,16 @@ pub struct ZonePid(pid_t);
 impl ZonePid {
     pub fn to_pid(&self) -> Pid {
         Pid::from_raw(self.0)
+    }
+
+    pub fn from_pid(p: Pid) -> Self {
+        ZonePid(pid_t::from(p))
+    }
+}
+
+impl Display for ZonePid {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        color_zone_pid(&self.0).fmt(f)
     }
 }
 
@@ -183,7 +194,7 @@ fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Err
         ))
     } else {
         println!("Zone process forked for zone named \"{}\"", zone.name);
-        Ok(ZonePid(pid_t::from(pid)))
+        Ok(ZonePid::from_pid(pid))
     }
 }
 

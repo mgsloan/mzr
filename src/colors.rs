@@ -5,8 +5,13 @@ pub fn color_dir<T>(x: &T) -> Paint<&T> {
 }
 
 pub fn color_file<T>(x: &T) -> Paint<&T> {
-    // TODO(cleanup): different color?
+    // TODO(cleanup): different color than color_dir?
     Paint::blue(x).bold()
+}
+
+pub fn color_zone_pid<T>(x: &T) -> Paint<&T> {
+    // TODO(cleanup): different color than color_zone_name?
+    Paint::yellow(x).bold()
 }
 
 pub fn color_zone_name<T>(x: &T) -> Paint<&T> {
