@@ -140,7 +140,11 @@ impl Zone {
         }
     }
 
-    pub fn load_impl(mzr_dir: &MzrDir, zone_dir: &ZoneDir, zone_name: &ZoneName) -> Result<Zone, Error> {
+    pub fn load_impl(
+        mzr_dir: &MzrDir,
+        zone_dir: &ZoneDir,
+        zone_name: &ZoneName,
+    ) -> Result<Zone, Error> {
         let info: ZoneInfo = json::read(&ZoneInfoFile::new(&zone_dir))?.contents;
         let snap_dir = SnapDir::new(mzr_dir, &info.snapshot);
         let ovfs_changes_dir = OvfsChangesDir::new(zone_dir);
