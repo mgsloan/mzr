@@ -231,7 +231,7 @@ fn recv_response(stream: &UnixStream) -> Result<Response, Error> {
     Ok(serde_json::from_reader(stream)?)
 }
 
-fn send_to_daemon(mzr_dir: &MzrDir, request: &Request) -> Result<Response, Error> {
+fn connect_to_daemon(mzr_dir: &MzrDir) -> Result<UnixStream, Error> {
     let daemon_dir = DaemonDir::new(&mzr_dir);
     let socket_path = DaemonSocketFile::new(&daemon_dir);
     if !socket_path.exists() {
@@ -241,16 +241,34 @@ fn send_to_daemon(mzr_dir: &MzrDir, request: &Request) -> Result<Response, Error
             socket_path
         );
     }
-    let stream = UnixStream::connect(socket_path).context(format_err!(
+    Ok(UnixStream::connect(socket_path).context(format_err!(
         "Failed to connect to {}. Is it running?",
         color_cmd(&String::from("mzr daemon"))
-    ))?;
+    ))?)
+}
+
+fn run_daemon_command(mzr_dir: &MzrDir, request: &Request) -> Result<Response, Error> {
+    let stream = connect_to_daemon(mzr_dir)?;
     send_request(&stream, request)?;
     recv_response(&stream)
 }
 
 pub fn get_zone_process(mzr_dir: &MzrDir, zone_name: &ZoneName) -> Result<ZonePid, Error> {
-    match send_to_daemon(mzr_dir, &Request::ZoneProcess(zone_name.clone()))? {
+    let request = Request::ZoneProcess(zone_name.clone());
+    // TODO(hack): Sending the request twice is an ugly hack. For some
+    // reason, on initial forking of the daemon's zone process, the
+    // response never makes it back to the client. I suspect this is
+    // related to the client process getting control of the the
+    // stream, but it seems like FD_CLOEXEC is being set in the
+    // code.
+    //
+    // The workaround here is to ask twice, and use the response from
+    // the 2nd request, since that will just be a lookup in the
+    // daemon's cache.
+    let stream = connect_to_daemon(mzr_dir)?;
+    send_request(&stream, &request)?;
+    // Make the request again to actually get the process.
+    match run_daemon_command(mzr_dir, &request)? {
         Response::ZoneProcess(p) => Ok(p),
         Response::Error(e) => bail!("Response from daemon was {:?}", e),
     }
