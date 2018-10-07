@@ -33,10 +33,51 @@ use structopt::StructOpt;
 use void::unreachable;
 
 /*
+ * CLI options enum and runner
+ */
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "mzr", author = "Michael Sloan <mgsloan@gmail.com>")]
+pub enum Cmd {
+    #[structopt(name = "daemon", about = "Run mzr daemon")]
+    Daemon {},
+    #[structopt(name = "shell", about = "Enter a mzr shell")]
+    Shell {
+        #[structopt(flatten)]
+        opts: ShellOpts,
+    },
+    #[structopt(
+        name = "snap",
+        about = "Create mzr snapshot of working directory"
+    )]
+    Snap {
+        #[structopt(flatten)]
+        opts: SnapOpts,
+    },
+    #[structopt(
+        name = "go",
+        about = "Switch working directory to a different zone"
+    )]
+    Go {
+        #[structopt(flatten)]
+        opts: GoOpts,
+    },
+}
+
+pub fn run_cmd(cmd: &Cmd) -> Result<(), Error> {
+    match cmd {
+        Cmd::Daemon {} => daemon(),
+        Cmd::Shell { opts } => shell(&opts),
+        Cmd::Snap { opts } => snap(&opts),
+        Cmd::Go { opts } => go(&opts),
+    }
+}
+
+/*
  * "mzr daemon"
  */
 
-pub fn daemon() -> Result<(), Error> {
+fn daemon() -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("start mzr daemon")?;
     daemon::run(&top_dirs)
 }
@@ -60,7 +101,7 @@ pub struct ShellOpts {
     snap_name: Option<SnapName>,
 }
 
-pub fn shell(opts: &ShellOpts) -> Result<(), Error> {
+fn shell(opts: &ShellOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("enter mzr shell")?;
     if !Zone::exists(&top_dirs.mzr_dir, &opts.zone_name) {
         let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
@@ -98,7 +139,7 @@ pub struct SnapOpts {
     snap_name: Option<SnapName>,
 }
 
-pub fn snap(opts: &SnapOpts) -> Result<(), Error> {
+fn snap(opts: &SnapOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("take mzr snapshot")?;
     let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
     println!("Taking a snapshot named {}", snap_name);
@@ -117,7 +158,7 @@ pub struct GoOpts {
     zone_name: ZoneName,
 }
 
-pub fn go(opts: &GoOpts) -> Result<(), Error> {
+fn go(opts: &GoOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find("switch mzr zone")?;
     let zone = Zone::load(&top_dirs.mzr_dir, &opts.zone_name)?;
     // TODO: attempt to unmount old dir?  Would lead to a cleaner
