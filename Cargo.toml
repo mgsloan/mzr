@@ -21,3 +21,7 @@ shrinkwraprs = "0.2.0"
 structopt = "0.2.10"
 void = "1.0.2"
 yansi = "0.4.0"
+
+[lib]
+name = "mzr"
+path = "src/lib.rs"
