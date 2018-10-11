@@ -3,10 +3,10 @@
 #![feature(uniform_paths)]
 #![warn(rust_2018_idioms)]
 
-use structopt::StructOpt;
+use mzr::colors::color_err;
 use mzr::*;
 use std::process::exit;
-use mzr::colors::color_err;
+use structopt::StructOpt;
 
 pub fn main() {
     match run_cmd(&Cmd::from_args()) {
