@@ -6,7 +6,7 @@ use ipc_channel::ipc::{self, IpcOneShotServer, IpcReceiver, IpcSender};
 use nix::errno::Errno;
 use nix::sched::{setns, unshare, CloneFlags};
 use nix::sys::wait::{waitpid, WaitStatus::*};
-use nix::unistd;
+use nix::unistd::{Gid, Pid, Uid};
 use nix::Error::Sys;
 use serde_derive::{Deserialize, Serialize};
 use std::boxed::Box;
@@ -23,7 +23,7 @@ struct Ready;
 // the child should only be necessary if CLONE_VM is set.
 const STACK_SIZE: usize = 1024 * 1024;
 
-pub fn with_unshared_mount<F>(mut child_fn: F) -> Result<unistd::Pid, Error>
+pub fn with_unshared_mount<F>(mut child_fn: F) -> Result<Pid, Error>
 where
     F: FnMut() -> Result<(), Error>,
 {
@@ -51,9 +51,9 @@ where
 pub fn with_unshared_user_and_mount<F, G>(
     mut write_maps_fn: F,
     mut child_fn: G,
-) -> Result<unistd::Pid, Error>
+) -> Result<Pid, Error>
 where
-    F: FnMut(unistd::Pid) -> Result<(), Error>,
+    F: FnMut(Pid) -> Result<(), Error>,
     G: FnMut() -> Result<(), Error>,
 {
     // clone with unshared mount and user namespaces.
@@ -119,24 +119,24 @@ fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
     Ok(x.context("Error encountered in interprocess communication mechanism.")?)
 }
 
-pub fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
-    let root_uid = unistd::Uid::from_raw(0);
-    let root_gid = unistd::Gid::from_raw(0);
+pub fn map_user_to_root(child_pid: Pid) -> Result<(), Error> {
+    let root_uid = Uid::from_raw(0);
+    let root_gid = Gid::from_raw(0);
     map_one_user_and_group(
         child_pid,
-        unistd::Uid::current(),
+        Uid::current(),
         root_uid,
-        unistd::Gid::current(),
+        Gid::current(),
         root_gid,
     )
 }
 
 pub fn map_one_user_and_group(
-    child_pid: unistd::Pid,
-    source_user: unistd::Uid,
-    target_user: unistd::Uid,
-    source_group: unistd::Gid,
-    target_group: unistd::Gid,
+    child_pid: Pid,
+    source_user: Uid,
+    target_user: Uid,
+    source_group: Gid,
+    target_group: Gid,
 ) -> Result<(), Error> {
     let result: Result<(), Error> = try {
         // Map current user to root within the user namespace.
@@ -177,7 +177,7 @@ pub fn unshare_mount() -> Result<(), Error> {
     Ok(())
 }
 
-pub fn enter_mount(pid: unistd::Pid) -> Result<(), Error> {
+pub fn enter_mount(pid: Pid) -> Result<(), Error> {
     let proc_dir = ProcDir::new(pid);
     enter_ns(
         &ProcNamespaceFile::new_mount(&proc_dir),
@@ -185,7 +185,7 @@ pub fn enter_mount(pid: unistd::Pid) -> Result<(), Error> {
     )
 }
 
-pub fn enter_user_and_mount(pid: unistd::Pid) -> Result<(), Error> {
+pub fn enter_user_and_mount(pid: Pid) -> Result<(), Error> {
     let proc_dir = ProcDir::new(pid);
     enter_ns(
         &ProcNamespaceFile::new_user(&proc_dir),
