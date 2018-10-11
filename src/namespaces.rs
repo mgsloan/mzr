@@ -86,54 +86,6 @@ where
     Ok(child_pid)
 }
 
-pub fn with_unshared_user_and_mount_wait_exit<F>(child_fn: F) -> Result<(), Error>
-where
-    F: FnMut() -> Result<(), Error>,
-{
-    let child_pid = with_unshared_user_and_mount(child_fn)?;
-
-    // TODO(correctness): Why is this necessary??  Should do something
-    // more reliable.
-    thread::sleep(time::Duration::from_millis(100));
-
-    match waitpid(child_pid, None) {
-        Err(e @ Sys(Errno::ECHILD)) => Err(e).context("Failed to find mzr child after fork.")?,
-        Err(e @ Sys(Errno::EINTR)) => {
-            Err(e).context("Waiting for mzr child interrupted by signal.")?
-        }
-        Err(e @ Sys(Errno::EINVAL)) => Err(e).context("Impossible: waitpid was called wrong.")?,
-        Err(e) => Err(e).context("Unexpected error in waitpid.")?,
-        Ok(Exited(_, status)) => {
-            if status == 0 {
-                println!("mzr child exited with success.");
-            } else {
-                println!(
-                    "mzr child exited with {} {}",
-                    color_err(&"error code"),
-                    color_err(&status)
-                );
-            }
-        }
-        Ok(Signaled(_, signal, _)) => {
-            println!(
-                "mzr child was {} {:?}",
-                color_err(&"killed by signal"),
-                color_err(&signal)
-            );
-        }
-        Ok(status) => {
-            // The other status results only occur when particular options are
-            // passed to waitpid.
-            bail!(
-                "Response from waiting for child should be impossible: {:?}",
-                Paint::blue(status)
-            );
-        }
-    }
-
-    Ok(())
-}
-
 // IPC helper functions
 
 fn init_ipc() -> Result<(IpcOneShotServer<IpcSender<Ready>>, String), Error> {
