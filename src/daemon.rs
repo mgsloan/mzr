@@ -6,7 +6,7 @@ use crate::zone::Zone;
 use daemonize::Daemonize;
 use failure::{Error, ResultExt};
 use libc::pid_t;
-use nix::unistd::Pid;
+use nix::unistd::{Gid, Pid, Uid};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
@@ -43,49 +43,54 @@ impl Display for ZonePid {
 type ProcessMap = HashMap<ZoneName, ZonePid>;
 
 pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
-    let _pid = namespaces::with_unshared_user_and_mount(namespaces::map_user_to_root, || {
-        let daemon_dir = DaemonDir::new(&top_dirs.mzr_dir);
-        create_dir_all(&daemon_dir)?;
-        // TODO(cleanup): Don't truncate old daemon logs?
-        let log_file = File::create(DaemonLogFile::new(&daemon_dir))?;
-        Daemonize::new()
-            .pid_file(DaemonPidFile::new(&daemon_dir))
-            .stdout(log_file)
-            .start()?;
-        // Disable ANSI codes in output, since it's sent to a log
-        // rather than terminal.
-        Paint::disable();
-        // Listen for client connections.
-        let socket_path = DaemonSocketFile::new(&daemon_dir);
-        if socket_path.exists() {
-            remove_file(&socket_path).context(format_err!(
-                "Failed to remove daemon socket file {}",
-                socket_path
-            ))?;
-        }
-        // Mutable hashmap to track which child processes have been
-        // created.
-        let mut processes = HashMap::new();
-        // Listen for client connections. In the future, perhaps tokio
-        // or mio will be used, but for now using the lower level APIs
-        // because they are simpler and have better documentation.
-        let listener = UnixListener::bind(socket_path)?;
-        for stream_or_err in listener.incoming() {
-            let stream = stream_or_err?;
-            match handle_client(&top_dirs, stream, &mut processes) {
-                Ok(()) => (),
-                Err(err) => {
-                    println!("");
-                    println!("Error while handling client.");
-                    println!("Debug info for exception: {:?}", err);
-                    println!("Display info for exception: {}", err);
-                    println!("Ignoring this and continuing daemon execution...");
-                    println!("");
+    let user = Uid::current();
+    let group = Gid::current();
+    let _pid = namespaces::with_unshared_user_and_mount(
+        |child_process| namespaces::map_user_to_root(child_process, user, group),
+        || {
+            let daemon_dir = DaemonDir::new(&top_dirs.mzr_dir);
+            create_dir_all(&daemon_dir)?;
+            // TODO(cleanup): Don't truncate old daemon logs?
+            let log_file = File::create(DaemonLogFile::new(&daemon_dir))?;
+            Daemonize::new()
+                .pid_file(DaemonPidFile::new(&daemon_dir))
+                .stdout(log_file)
+                .start()?;
+            // Disable ANSI codes in output, since it's sent to a log
+            // rather than terminal.
+            Paint::disable();
+            // Listen for client connections.
+            let socket_path = DaemonSocketFile::new(&daemon_dir);
+            if socket_path.exists() {
+                remove_file(&socket_path).context(format_err!(
+                    "Failed to remove daemon socket file {}",
+                    socket_path
+                ))?;
+            }
+            // Mutable hashmap to track which child processes have been
+            // created.
+            let mut processes = HashMap::new();
+            // Listen for client connections. In the future, perhaps tokio
+            // or mio will be used, but for now using the lower level APIs
+            // because they are simpler and have better documentation.
+            let listener = UnixListener::bind(socket_path)?;
+            for stream_or_err in listener.incoming() {
+                let stream = stream_or_err?;
+                match handle_client(&top_dirs, user, group, stream, &mut processes) {
+                    Ok(()) => (),
+                    Err(err) => {
+                        println!("");
+                        println!("Error while handling client.");
+                        println!("Debug info for exception: {:?}", err);
+                        println!("Display info for exception: {}", err);
+                        println!("Ignoring this and continuing daemon execution...");
+                        println!("");
+                    }
                 }
             }
-        }
-        Ok(())
-    })?;
+            Ok(())
+        },
+    )?;
     // TODO(friendliness): Include this output, but only do it when
     // the daemon has actually started. Currently if you start the
     // daemon while another is running, and this line is uncommented,
@@ -118,6 +123,8 @@ enum Response {
 
 fn handle_client(
     top_dirs: &TopDirs,
+    user: Uid,
+    group: Gid,
     stream: UnixStream,
     processes: &mut ProcessMap,
 ) -> Result<(), Error> {
@@ -135,7 +142,7 @@ fn handle_client(
                         zone.mount()?;
                         // Fork a zone process which bind-mounts the
                         // zone to the user's working directory.
-                        let pid = fork_zone_process(&top_dirs.user_work_dir, &zone)?;
+                        let pid = fork_zone_process(&top_dirs.user_work_dir, user, group, &zone)?;
                         processes.insert(zone_name, pid.clone());
                         Response::ZoneProcess(pid)
                     }
@@ -155,35 +162,45 @@ fn handle_client(
 
 const READY_MSG: &[u8; 6] = b"ready\n";
 
-fn fork_zone_process(work_dir: &UserWorkDir, zone: &Zone) -> Result<ZonePid, Error> {
+fn fork_zone_process(
+    work_dir: &UserWorkDir,
+    user: Uid,
+    group: Gid,
+    zone: &Zone,
+) -> Result<ZonePid, Error> {
     // TODO(cleanup): mzr now has a few different takes on IPC, should
     // use a consistent style.
     let (server_stream, mut client_stream) = UnixStream::pair()?;
-    let pid = namespaces::with_unshared_mount(|| {
-        // TODO(cleanup): When the parent process exits, it should
-        // close the pipe, which should cause the read to
-        // exit. However, for some reason that didn't work. Setting
-        // PDEATHSIG seems to work, though. It would be nicer to avoid
-        // this, though.
-        unsafe {
-            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
-                bail!("Failed to set PDEATHSIG");
+    let pid = namespaces::with_unshared_user_and_mount(
+        |child_process| {
+            namespaces::map_root_to_user(child_process, user, group)
+        },
+        || {
+            // TODO(cleanup): When the parent process exits, it should
+            // close the pipe, which should cause the read to
+            // exit. However, for some reason that didn't work. Setting
+            // PDEATHSIG seems to work, though. It would be nicer to avoid
+            // this, though.
+            unsafe {
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) != 0 {
+                    bail!("Failed to set PDEATHSIG");
+                }
             }
-        }
-        // Bind mount zone over the user's work-dir.
-        zone.bind_to(work_dir)?;
-        // Indicate to parent process that the zone is ready.
-        client_stream.write_all(READY_MSG)?;
-        let mut data = Vec::new();
-        // This should just block forever, since server_stream never
-        // gets written to.
-        let result = client_stream.read_to_end(&mut data);
-        println!(
-            "mzr zone process unexpectedly done blocking, result was {:?}",
-            result
-        );
-        Ok(())
-    })?;
+            // Bind mount zone over the user's work-dir.
+            zone.bind_to(work_dir)?;
+            // Indicate to parent process that the zone is ready.
+            client_stream.write_all(READY_MSG)?;
+            let mut data = Vec::new();
+            // This should just block forever, since server_stream never
+            // gets written to.
+            let result = client_stream.read_to_end(&mut data);
+            println!(
+                "mzr zone process unexpectedly done blocking, result was {:?}",
+                result
+            );
+            Ok(())
+        },
+    )?;
     let mut data = Vec::new();
     let mut reader = BufReader::new(server_stream);
     reader.read_until(b'\n', &mut data)?;

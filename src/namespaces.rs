@@ -119,16 +119,16 @@ fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
     Ok(x.context("Error encountered in interprocess communication mechanism.")?)
 }
 
-pub fn map_user_to_root(child_process: Pid) -> Result<(), Error> {
+pub fn map_user_to_root(child_process: Pid, user: Uid, group: Gid) -> Result<(), Error> {
     let root_user = Uid::from_raw(0);
     let root_group = Gid::from_raw(0);
-    map_one_user_and_group(
-        child_process,
-        Uid::current(),
-        root_user,
-        Gid::current(),
-        root_group,
-    )
+    map_one_user_and_group(child_process, user, root_user, group, root_group)
+}
+
+pub fn map_root_to_user(child_process: Pid, user: Uid, group: Gid) -> Result<(), Error> {
+    let root_user = Uid::from_raw(0);
+    let root_group = Gid::from_raw(0);
+    map_one_user_and_group(child_process, root_user, user, root_group, group)
 }
 
 pub fn map_one_user_and_group(
