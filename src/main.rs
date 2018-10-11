@@ -14,7 +14,6 @@ pub fn main() {
         Err(err) => {
             println!();
             println!("{} {}", color_err(&"mzr error:"), err);
-            println!("Debug: {:?}", err);
             exit(1);
         }
     }

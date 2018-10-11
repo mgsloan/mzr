@@ -30,6 +30,10 @@ pub fn color_warn<T>(x: &T) -> Paint<&T> {
     Paint::yellow(x).bold()
 }
 
+pub fn color_success<T>(x: &T) -> Paint<&T> {
+    Paint::green(x).bold()
+}
+
 pub fn color_cmd<T>(x: &T) -> Paint<&T> {
     Paint::purple(x).bold()
 }

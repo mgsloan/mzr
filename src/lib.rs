@@ -144,7 +144,11 @@ fn snap(opts: &SnapOpts) -> Result<(), Error> {
     let snap_name = default_git_snap_name(&top_dirs, &opts.snap_name)?;
     println!("Taking a snapshot named {}", snap_name);
     let _snap_dir = snapshot::of_workdir(&top_dirs, &snap_name)?;
-    println!("Finished taking snapshot.");
+    println!(
+        "{} snapshot named {} taken.",
+        colors::color_success(&"Success:"),
+        snap_name
+    );
     Ok(())
 }
 

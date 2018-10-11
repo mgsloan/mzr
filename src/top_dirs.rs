@@ -1,3 +1,4 @@
+use crate::colors::*;
 use crate::paths::{MzrDir, UserWorkDir};
 use crate::utils::{confirm, Confirmed};
 use failure::{Error, ResultExt};
@@ -48,23 +49,23 @@ impl TopDirs {
             Err(err) => {
                 match err.downcast() {
                     Ok(MzrDirNotFound) => {
+                        println!("Couldn't find a mzr directory sibling to any parent directory, but one is needed in order to {}.", action);
                         let dirs = match find_git_repo(&start_dir) {
-                            None => {
-                                println!("Couldn't find a mzr directory sibling to any parent directory.");
-                                TopDirs::from_user_work(UserWorkDir::new(&start_dir))
-                            }
+                            None => TopDirs::from_user_work(UserWorkDir::new(&start_dir)),
                             Some(git_dir) => {
-                                println!("Couldn't find a mzr directory sibling to any parent directory, \
-                                          but did find a git repository at {}", git_dir);
+                                println!("There's a git repository at {}", git_dir);
                                 TopDirs::from_user_work(git_dir)
                             }
                         };
-                        match confirm(&format!("Initialize a new mzr dir at {}", dirs.mzr_dir))? {
+                        match confirm(&format!("Init a new mzr directory at {}", dirs.mzr_dir))? {
                             Confirmed::Yes => {
                                 //TODO(cleanup): can this clone be avoided? (same on other
                                 // create_dir_all usages)
                                 create_dir_all(dirs.mzr_dir.clone())?;
-                                println!("mzr directory initialized.");
+                                println!(
+                                    "{} mzr directory initialized.",
+                                    color_success(&"Success:")
+                                );
                                 //TODO(cleanup): can this clone be avoided?
                                 Ok(dirs.clone())
                             }
