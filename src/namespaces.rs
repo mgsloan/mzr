@@ -119,20 +119,20 @@ fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
     Ok(x.context("Error encountered in interprocess communication mechanism.")?)
 }
 
-pub fn map_user_to_root(child_pid: Pid) -> Result<(), Error> {
-    let root_uid = Uid::from_raw(0);
-    let root_gid = Gid::from_raw(0);
+pub fn map_user_to_root(child_process: Pid) -> Result<(), Error> {
+    let root_user = Uid::from_raw(0);
+    let root_group = Gid::from_raw(0);
     map_one_user_and_group(
-        child_pid,
+        child_process,
         Uid::current(),
-        root_uid,
+        root_user,
         Gid::current(),
-        root_gid,
+        root_group,
     )
 }
 
 pub fn map_one_user_and_group(
-    child_pid: Pid,
+    child_process: Pid,
     source_user: Uid,
     target_user: Uid,
     source_group: Gid,
@@ -140,18 +140,18 @@ pub fn map_one_user_and_group(
 ) -> Result<(), Error> {
     let result: Result<(), Error> = try {
         // Map current user to root within the user namespace.
-        let uid_map_path = format!("/proc/{}/uid_map", child_pid);
+        let uid_map_path = format!("/proc/{}/uid_map", child_process);
         let mut uid_map_file = OpenOptions::new().write(true).open(uid_map_path)?;
         uid_map_file.write_all(format!("{} {} 1\n", target_user, source_user).as_bytes())?;
 
         // Disable usage of setgroups system call, allowing gid_map to
         // be written.
-        let set_groups_path = format!("/proc/{}/setgroups", child_pid);
+        let set_groups_path = format!("/proc/{}/setgroups", child_process);
         let mut set_groups_file = OpenOptions::new().write(true).open(set_groups_path)?;
         set_groups_file.write_all(b"deny")?;
 
         // Map current group to root within the user namespace.
-        let gid_map_path = format!("/proc/{}/gid_map", child_pid);
+        let gid_map_path = format!("/proc/{}/gid_map", child_process);
         let mut gid_map_file = OpenOptions::new().write(true).open(gid_map_path)?;
         gid_map_file.write_all(format!("{} {} 1\n", target_group, source_group).as_bytes())?;
     };
