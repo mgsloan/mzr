@@ -48,9 +48,13 @@ where
     Ok(child_pid)
 }
 
-pub fn with_unshared_user_and_mount<F>(mut child_fn: F) -> Result<unistd::Pid, Error>
+pub fn with_unshared_user_and_mount<F, G>(
+    mut write_maps_fn: F,
+    mut child_fn: G,
+) -> Result<unistd::Pid, Error>
 where
-    F: FnMut() -> Result<(), Error>,
+    F: FnMut(unistd::Pid) -> Result<(), Error>,
+    G: FnMut() -> Result<(), Error>,
 {
     // clone with unshared mount and user namespaces.
     let clone_flags = CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWUSER;
@@ -77,12 +81,8 @@ where
         clone_flags,
         None,
     ).context("Error while cloning mzr child with unshared user and mount namespaces.")?;
-
-    // Map the current user to root within the child process.
-    map_user_to_root(child_pid)?;
-
+    write_maps_fn(child_pid)?;
     send_ready(parent_server)?;
-
     Ok(child_pid)
 }
 
@@ -119,13 +119,30 @@ fn wrap_ipc<T>(x: Result<T, Error>) -> Result<T, Error> {
     Ok(x.context("Error encountered in interprocess communication mechanism.")?)
 }
 
-// UID mapping helper functions
-fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
-    wrap_user_mapping({
+pub fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
+    let root_uid = unistd::Uid::from_raw(0);
+    let root_gid = unistd::Gid::from_raw(0);
+    map_one_user_and_group(
+        child_pid,
+        unistd::Uid::current(),
+        root_uid,
+        unistd::Gid::current(),
+        root_gid,
+    )
+}
+
+pub fn map_one_user_and_group(
+    child_pid: unistd::Pid,
+    source_user: unistd::Uid,
+    target_user: unistd::Uid,
+    source_group: unistd::Gid,
+    target_group: unistd::Gid,
+) -> Result<(), Error> {
+    let result: Result<(), Error> = try {
         // Map current user to root within the user namespace.
         let uid_map_path = format!("/proc/{}/uid_map", child_pid);
         let mut uid_map_file = OpenOptions::new().write(true).open(uid_map_path)?;
-        uid_map_file.write_all(format!("0 {} 1\n", unistd::Uid::current()).as_bytes())?;
+        uid_map_file.write_all(format!("{} {} 1\n", target_user, source_user).as_bytes())?;
 
         // Disable usage of setgroups system call, allowing gid_map to
         // be written.
@@ -136,17 +153,18 @@ fn map_user_to_root(child_pid: unistd::Pid) -> Result<(), Error> {
         // Map current group to root within the user namespace.
         let gid_map_path = format!("/proc/{}/gid_map", child_pid);
         let mut gid_map_file = OpenOptions::new().write(true).open(gid_map_path)?;
-        gid_map_file.write_all(format!("0 {} 1\n", unistd::Gid::current()).as_bytes())?;
-        Ok(())
-    })
+        gid_map_file.write_all(format!("{} {} 1\n", target_group, source_group).as_bytes())?;
+    };
+    result.context("Error encountered while setting up child process user namespace.")?;
+    Ok(())
 }
 
+/*
 // TODO(cleanup)
 fn wrap_user_mapping<T>(x: Result<T, Error>) -> Result<T, Error> {
-    Ok(x.context(
-        "Error encountered while mapping user to root within the child process user namespace.",
-    )?)
+    Ok(x?)
 }
+*/
 
 pub fn enter_daemon_space(mzr_dir: &MzrDir) -> Result<(), Error> {
     enter_user_and_mount(parse_pid_file(DaemonPidFile::new(&DaemonDir::new(

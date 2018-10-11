@@ -43,7 +43,7 @@ impl Display for ZonePid {
 type ProcessMap = HashMap<ZoneName, ZonePid>;
 
 pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
-    let _pid = namespaces::with_unshared_user_and_mount(|| {
+    let _pid = namespaces::with_unshared_user_and_mount(namespaces::map_user_to_root, || {
         let daemon_dir = DaemonDir::new(&top_dirs.mzr_dir);
         create_dir_all(&daemon_dir)?;
         // TODO(cleanup): Don't truncate old daemon logs?
