@@ -19,8 +19,9 @@ use yansi::Paint;
 #[derive(Serialize, Deserialize, Debug)]
 struct Ready;
 
-// TODO(cleanup): Seems to me like from the glibc docs of clone, a stack for
-// the child should only be necessary if CLONE_VM is set.
+// TODO(cleanup): Seems to me like from the glibc docs of clone, a
+// stack for the child should only be necessary if CLONE_VM is set.
+// Also, 1mb is certainly overkill.
 const STACK_SIZE: usize = 1024 * 1024;
 
 pub fn with_unshared_mount<F>(mut child_fn: F) -> Result<Pid, Error>
