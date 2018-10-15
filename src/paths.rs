@@ -55,6 +55,17 @@ pub struct OvfsWorkDir(PathBuf);
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct OvfsMountDir(PathBuf);
 
+/// Path where the user's git directory gets bind-mounted - typically
+/// something like `.../PROJECT.mzr/git-repo`. This allows access to
+/// the git repository even though a mount has been placed over the
+/// user's work dir.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct BoundGitRepoDir(PathBuf);
+
+/// Relative path to the git directory, relative to the project root.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct RelativeGitRepoDir(PathBuf);
+
 /// Path to the directory containing daemon related files. It is
 /// typically something like `.../PROJECT.mzr/daemon`.
 #[derive(Debug, Clone, Shrinkwrap)]
@@ -169,6 +180,23 @@ impl OvfsMountDir {
         let mut ovfs_mount_dir = zone_dir.0.clone();
         ovfs_mount_dir.push("mount");
         OvfsMountDir(ovfs_mount_dir)
+    }
+}
+
+impl BoundGitRepoDir {
+    pub fn new(mzr_dir: &MzrDir) -> Self {
+        let mut bound_git_repo_dir = mzr_dir.0.clone();
+        bound_git_repo_dir.push("git-repo");
+        BoundGitRepoDir(bound_git_repo_dir)
+    }
+}
+
+impl RelativeGitRepoDir {
+    pub fn new<T>(rel_path: T) -> Self
+    where
+        PathBuf: From<T>,
+    {
+        RelativeGitRepoDir(PathBuf::from(rel_path))
     }
 }
 
@@ -310,6 +338,18 @@ impl AsRef<Path> for OvfsMountDir {
     }
 }
 
+impl AsRef<Path> for BoundGitRepoDir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for RelativeGitRepoDir {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
 impl AsRef<Path> for DaemonDir {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
@@ -406,6 +446,18 @@ impl AsRef<OsStr> for OvfsMountDir {
     }
 }
 
+impl AsRef<OsStr> for BoundGitRepoDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for RelativeGitRepoDir {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
 impl AsRef<OsStr> for DaemonDir {
     fn as_ref(&self) -> &OsStr {
         self.0.as_ref()
@@ -497,6 +549,18 @@ impl Display for OvfsWorkDir {
 }
 
 impl Display for OvfsMountDir {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        color_dir(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for BoundGitRepoDir {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        color_dir(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for RelativeGitRepoDir {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_dir(&self.0.display()).fmt(f)
     }

@@ -1,4 +1,5 @@
 use crate::colors::*;
+use crate::git::{get_git_dir, symlink_git_repo};
 use crate::namespaces;
 use crate::paths::*;
 use crate::top_dirs::TopDirs;
@@ -6,11 +7,12 @@ use crate::zone::Zone;
 use daemonize::Daemonize;
 use failure::{Error, ResultExt};
 use libc::pid_t;
+use libmount::BindMount;
 use nix::unistd::{Gid, Pid, Uid};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
-use std::fs::{create_dir_all, read_dir, remove_file, File};
+use std::fs::{create_dir, create_dir_all, read_dir, remove_file, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
@@ -50,6 +52,7 @@ pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
         || {
             let daemon_dir = DaemonDir::new(&top_dirs.mzr_dir);
             create_dir_all(&daemon_dir)?;
+            let git_info = bind_git_repo(top_dirs)?;
             // TODO(cleanup): Don't truncate old daemon logs?
             let log_file = File::create(DaemonLogFile::new(&daemon_dir))?;
             Daemonize::new()
@@ -76,7 +79,7 @@ pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
             let listener = UnixListener::bind(socket_path)?;
             for stream_or_err in listener.incoming() {
                 let stream = stream_or_err?;
-                match handle_client(&top_dirs, user, group, stream, &mut processes) {
+                match handle_client(&top_dirs, &git_info, user, group, stream, &mut processes) {
                     Ok(()) => (),
                     Err(err) => {
                         println!("");
@@ -98,6 +101,33 @@ pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
     //
     // println!("Started {} with PID {}", color_cmd(&String::from("mzr daemon")), color_cmd(&pid));
     Ok(())
+}
+
+// If there is a top level git repository, bind mount it, so that the
+// repo can be shared by the zones.
+//
+// TODO(correctness): This is gnarly. Instead, git repos should be
+// supported after the daemon has already started. Should also support
+// multiple git repos.
+fn bind_git_repo(
+    top_dirs: &TopDirs,
+) -> Result<Option<(BoundGitRepoDir, RelativeGitRepoDir)>, Error> {
+    Ok(match get_git_dir(&top_dirs.user_work_dir) {
+        Err(_) => None,
+        Ok(rel_git_dir) => {
+            let src_git_dir = top_dirs.user_work_dir.join(&rel_git_dir);
+            if src_git_dir.is_dir() {
+                let bound_git_repo_dir = BoundGitRepoDir::new(&top_dirs.mzr_dir);
+                create_dir_all(&bound_git_repo_dir)?;
+                BindMount::new(&src_git_dir, &bound_git_repo_dir)
+                    .mount()
+                    .map_err(|e| format_err!("{}", e))?;
+                Some((bound_git_repo_dir, rel_git_dir))
+            } else {
+                None
+            }
+        }
+    })
 }
 
 /*
@@ -123,6 +153,7 @@ enum Response {
 
 fn handle_client(
     top_dirs: &TopDirs,
+    git_info: &Option<(BoundGitRepoDir, RelativeGitRepoDir)>,
     user: Uid,
     group: Gid,
     stream: UnixStream,
@@ -134,6 +165,13 @@ fn handle_client(
                 None => match Zone::load_if_exists(&top_dirs.mzr_dir, &zone_name)? {
                     None => Response::Error(String::from("Zone does not exist")),
                     Some(zone) => {
+                        match git_info {
+                            None => {}
+                            Some((source_git_dir, rel_git_dir)) => {
+                                let target_git_dir = zone.ovfs_changes_dir.join(rel_git_dir);
+                                symlink_git_repo(&source_git_dir, &target_git_dir)?;
+                            }
+                        }
                         // Mount the zone's overlayfs in the daemon's namespace.
                         //
                         // TODO: Looks like this does not yet
@@ -172,9 +210,7 @@ fn fork_zone_process(
     // use a consistent style.
     let (server_stream, mut client_stream) = UnixStream::pair()?;
     let pid = namespaces::with_unshared_user_and_mount(
-        |child_process| {
-            namespaces::map_root_to_user(child_process, user, group)
-        },
+        |child_process| namespaces::map_root_to_user(child_process, user, group),
         || {
             // TODO(cleanup): When the parent process exits, it should
             // close the pipe, which should cause the read to

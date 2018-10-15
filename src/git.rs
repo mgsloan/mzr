@@ -1,12 +1,66 @@
 use crate::colors::*;
-use crate::paths::{SnapName, UserWorkDir};
+use crate::paths::{BoundGitRepoDir, RelativeGitRepoDir, SnapName, UserWorkDir};
 use crate::utils::strip_prefix;
 use failure::{Error, ResultExt};
 use semver::Version;
 use std::env;
 use std::fmt;
+use std::fs::{create_dir_all, read_link};
 use std::io::ErrorKind;
+use std::os::unix::fs::symlink;
+use std::path::PathBuf;
 use std::process::{Command, ExitStatus, Stdio};
+
+// This implements something very similar to git's old "workdir"
+// approach for having multiple working directories associated with
+// one repository.
+//
+// Unlike the script there, this is idempotent, but only if the
+// symlinks are correct.
+pub fn symlink_git_repo(source_git_dir: &PathBuf, target_git_dir: &PathBuf) -> Result<(), Error> {
+    // Based on list / code at
+    // https://github.com/git/git/blob/e32afab7b0376a7b07601a87cd5c6841ff2a811a/contrib/workdir/git-new-workdir#L82
+    for shared_path in [
+        "config",
+        "refs",
+        "logs/refs",
+        "objects",
+        "info",
+        "hooks",
+        "packed-refs",
+        "remotes",
+        "rr-cache",
+        "svn",
+    ]
+        .iter()
+    {
+        let source_path = source_git_dir.join(shared_path);
+        let target_path = target_git_dir.join(shared_path);
+        if target_path.exists() {
+            let existing_path = read_link(&target_path).context(format_err!(
+                "Expected {:?} to be a symbolic link.",
+                &target_path
+            ))?;
+            if existing_path != source_path {
+                bail!(
+                    "Expected {:?} to be a symbolic link to {:?}, but instead it points at {:?}",
+                    &target_path,
+                    &source_path,
+                    &existing_path
+                );
+            }
+        } else {
+            create_dir_all(target_path.parent().unwrap())?;
+            // Note that the source path does not need to exist.  For
+            // example the 'svn' dir probably usually doesn't exist.
+            //
+            // TODO(correctess): This should use relative dirs, so
+            // that the .mzr dir can get moved around.
+            symlink(source_path, target_path)?;
+        }
+    }
+    Ok(())
+}
 
 pub fn default_snap_name(work_dir: &UserWorkDir) -> Result<SnapName, Error> {
     match current_ref_or_short_sha(&work_dir) {
@@ -69,6 +123,16 @@ fn head_sha(work_dir: &UserWorkDir) -> Result<String, GitError> {
             .arg("rev-parse")
             .arg("HEAD"),
     ).map(|x| x.trim().to_string())
+}
+
+pub fn get_git_dir(work_dir: &UserWorkDir) -> Result<RelativeGitRepoDir, GitError> {
+    collect_output(
+        Command::new("git")
+            .stdin(Stdio::null())
+            .current_dir(work_dir)
+            .arg("rev-parse")
+            .arg("--git-dir"),
+    ).map(|x| RelativeGitRepoDir::new(x.trim()))
 }
 
 fn collect_output(cmd: &mut Command) -> Result<String, GitError> {
