@@ -45,9 +45,6 @@ pub fn symlink_git_repo(source_git_dir: &PathBuf, target_git_dir: &PathBuf) -> R
                 create_dir_all(target_path.parent().unwrap())?;
                 // Note that the source path does not need to exist.  For
                 // example the 'svn' dir probably usually doesn't exist.
-                //
-                // TODO(correctess): This should use relative dirs, so
-                // that the .mzr dir can get moved around.
                 symlink(&source_path, &target_path).context(format_err!(
                     "Failed to create git repo symlink at {:?}, pointing to {:?}",
                     target_path,
