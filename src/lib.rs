@@ -116,10 +116,6 @@ fn shell(opts: &ShellOpts) -> Result<(), Error> {
         Zone::create(&top_dirs.mzr_dir, &opts.zone_name, &snap_name)?;
     };
     let zone_pid = daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
-    // TODO(usefulness): It would be better to not need to enter the
-    // user namespace, so that the user doesn't become root in the
-    // shell.  However, only entering the mount namespace seems to
-    // cause an EPERM.
     daemon::enter_zone_process_user_and_mount(&zone_pid)?;
     env::set_current_dir(&top_dirs.user_work_dir)?;
     env::set_var("MZR_DIR", &top_dirs.mzr_dir);
