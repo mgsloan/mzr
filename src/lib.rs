@@ -54,6 +54,7 @@ pub enum Cmd {
         #[structopt(flatten)]
         opts: SnapOpts,
     },
+    /*
     #[structopt(
         name = "go",
         about = "Switch working directory to a different zone"
@@ -62,6 +63,7 @@ pub enum Cmd {
         #[structopt(flatten)]
         opts: GoOpts,
     },
+    */
 }
 
 pub fn run_cmd(cmd: &Cmd) -> Result<(), Error> {
@@ -69,7 +71,7 @@ pub fn run_cmd(cmd: &Cmd) -> Result<(), Error> {
         Cmd::Daemon {} => daemon(),
         Cmd::Shell { opts } => shell(&opts),
         Cmd::Snap { opts } => snap(&opts),
-        Cmd::Go { opts } => go(&opts),
+        // Cmd::Go { opts } => go(&opts),
     }
 }
 
@@ -152,10 +154,15 @@ fn snap(opts: &SnapOpts) -> Result<(), Error> {
     Ok(())
 }
 
+
 /*
  * "mzr go"
  */
 
+// TODO(feature): Should bring back "mzr go", this code worked back
+// when the user in the shell was already root.
+
+/*
 #[derive(StructOpt, Debug)]
 pub struct GoOpts {
     #[structopt(name = "ZONE_NAME", help = "Name of the zone to switch to.")]
@@ -165,6 +172,9 @@ pub struct GoOpts {
 fn go(opts: &GoOpts) -> Result<(), Error> {
     let top_dirs = TopDirs::find("switch mzr zone")?;
     let zone = Zone::load(&top_dirs.mzr_dir, &opts.zone_name)?;
+    // Ask daemon to start zone process, to ensure that the overlay
+    // gets mounted.
+    daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
     // TODO: attempt to unmount old dir?  Would lead to a cleaner
     // mount list and notify when things are being used.
     //
@@ -172,6 +182,7 @@ fn go(opts: &GoOpts) -> Result<(), Error> {
     // mounted.
     zone.bind_to(&top_dirs.user_work_dir)
 }
+*/
 
 /*
  * Shared functions - things that are used by multiple commands, but seem to
