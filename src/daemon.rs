@@ -12,7 +12,7 @@ use nix::unistd::{Gid, Pid, Uid};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
-use std::fs::{create_dir, create_dir_all, read_dir, remove_file, File};
+use std::fs::{create_dir_all, read_dir, remove_file, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
@@ -54,10 +54,14 @@ pub fn run(top_dirs: &TopDirs) -> Result<(), Error> {
             create_dir_all(&daemon_dir)?;
             let git_info = bind_git_repo(top_dirs)?;
             // TODO(cleanup): Don't truncate old daemon logs?
-            let log_file = File::create(DaemonLogFile::new(&daemon_dir))?;
+            let log_stdout_file = File::create(DaemonLogStdoutFile::new(&daemon_dir))?;
+            let log_stderr_file = File::create(DaemonLogStderrFile::new(&daemon_dir))?;
             Daemonize::new()
                 .pid_file(DaemonPidFile::new(&daemon_dir))
-                .stdout(log_file)
+                // TODO(friendliness): Would be nice to merge
+                // these. Is stderr ever even used?
+                .stdout(log_stdout_file)
+                .stderr(log_stderr_file)
                 .start()?;
             // Disable ANSI codes in output, since it's sent to a log
             // rather than terminal.

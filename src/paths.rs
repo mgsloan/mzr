@@ -77,10 +77,15 @@ pub struct DaemonDir(PathBuf);
 #[derive(Debug, Clone, Shrinkwrap)]
 pub struct DaemonPidFile(PathBuf);
 
-/// Path to the daemon log file - typically something like
-/// `.../PROJECT.mzr/daemon/log`.
+/// Path to the daemon log file for stdout - typically something like
+/// `.../PROJECT.mzr/daemon/log.stdout`.
 #[derive(Debug, Clone, Shrinkwrap)]
-pub struct DaemonLogFile(PathBuf);
+pub struct DaemonLogStdoutFile(PathBuf);
+
+/// Path to the daemon log file for stderr - typically something like
+/// `.../PROJECT.mzr/daemon/log.stderr`.
+#[derive(Debug, Clone, Shrinkwrap)]
+pub struct DaemonLogStderrFile(PathBuf);
 
 /// Path to the daemon unix domain socket - typically something like
 /// `.../PROJECT.mzr/daemon/socket`.
@@ -218,12 +223,21 @@ impl DaemonPidFile {
     }
 }
 
-impl DaemonLogFile {
+impl DaemonLogStdoutFile {
     pub fn new(daemon_dir: &DaemonDir) -> Self {
         let dir_buf: &PathBuf = daemon_dir.as_ref();
         let mut result = dir_buf.clone();
-        result.push("log");
-        DaemonLogFile(result)
+        result.push("log.stdout");
+        DaemonLogStdoutFile(result)
+    }
+}
+
+impl DaemonLogStderrFile {
+    pub fn new(daemon_dir: &DaemonDir) -> Self {
+        let dir_buf: &PathBuf = daemon_dir.as_ref();
+        let mut result = dir_buf.clone();
+        result.push("log.stderr");
+        DaemonLogStderrFile(result)
     }
 }
 
@@ -362,7 +376,13 @@ impl AsRef<Path> for DaemonPidFile {
     }
 }
 
-impl AsRef<Path> for DaemonLogFile {
+impl AsRef<Path> for DaemonLogStdoutFile {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for DaemonLogStderrFile {
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
@@ -470,7 +490,13 @@ impl AsRef<OsStr> for DaemonPidFile {
     }
 }
 
-impl AsRef<OsStr> for DaemonLogFile {
+impl AsRef<OsStr> for DaemonLogStdoutFile {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<OsStr> for DaemonLogStderrFile {
     fn as_ref(&self) -> &OsStr {
         self.0.as_ref()
     }
@@ -578,7 +604,13 @@ impl Display for DaemonPidFile {
     }
 }
 
-impl Display for DaemonLogFile {
+impl Display for DaemonLogStdoutFile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        color_file(&self.0.display()).fmt(f)
+    }
+}
+
+impl Display for DaemonLogStderrFile {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         color_file(&self.0.display()).fmt(f)
     }
