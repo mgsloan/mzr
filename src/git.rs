@@ -56,7 +56,11 @@ pub fn symlink_git_repo(source_git_dir: &PathBuf, target_git_dir: &PathBuf) -> R
             //
             // TODO(correctess): This should use relative dirs, so
             // that the .mzr dir can get moved around.
-            symlink(source_path, target_path)?;
+            symlink(&source_path, &target_path).context(format_err!(
+                "Failed to create git repo symlink at {:?}, pointing to {:?}",
+                target_path,
+                source_path
+            ))?;
         }
     }
     Ok(())
