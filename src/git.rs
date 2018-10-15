@@ -36,31 +36,34 @@ pub fn symlink_git_repo(source_git_dir: &PathBuf, target_git_dir: &PathBuf) -> R
     {
         let source_path = source_git_dir.join(shared_path);
         let target_path = target_git_dir.join(shared_path);
-        if target_path.exists() {
-            let existing_path = read_link(&target_path).context(format_err!(
-                "Expected {:?} to be a symbolic link.",
-                &target_path
-            ))?;
-            if existing_path != source_path {
-                bail!(
-                    "Expected {:?} to be a symbolic link to {:?}, but instead it points at {:?}",
-                    &target_path,
-                    &source_path,
-                    &existing_path
-                );
+        let possibly_existing_link = read_link(&target_path).context(format_err!(
+            "Expected {:?} to be a symbolic link.",
+            &target_path
+        ));
+        match possibly_existing_link {
+            Err(_) => {
+                create_dir_all(target_path.parent().unwrap())?;
+                // Note that the source path does not need to exist.  For
+                // example the 'svn' dir probably usually doesn't exist.
+                //
+                // TODO(correctess): This should use relative dirs, so
+                // that the .mzr dir can get moved around.
+                symlink(&source_path, &target_path).context(format_err!(
+                    "Failed to create git repo symlink at {:?}, pointing to {:?}",
+                    target_path,
+                    source_path
+                ))?;
             }
-        } else {
-            create_dir_all(target_path.parent().unwrap())?;
-            // Note that the source path does not need to exist.  For
-            // example the 'svn' dir probably usually doesn't exist.
-            //
-            // TODO(correctess): This should use relative dirs, so
-            // that the .mzr dir can get moved around.
-            symlink(&source_path, &target_path).context(format_err!(
-                "Failed to create git repo symlink at {:?}, pointing to {:?}",
-                target_path,
-                source_path
-            ))?;
+            Ok(existing_link) => {
+                if existing_link != source_path {
+                    bail!(
+                        "Expected {:?} to be a symbolic link to {:?}, but instead it points at {:?}",
+                        &target_path,
+                        &source_path,
+                        &existing_link
+                    );
+                }
+            }
         }
     }
     Ok(())
