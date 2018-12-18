@@ -1,6 +1,7 @@
 use crate::colors::*;
 use crate::paths::*;
 use crate::top_dirs::TopDirs;
+use crate::utils::run_process;
 use failure::{Error, ResultExt};
 use std::fs::create_dir_all;
 use std::path::PathBuf;
@@ -45,21 +46,7 @@ fn create(source_dir: &PathBuf, mzr_dir: &MzrDir, snap_name: &SnapName) -> Resul
         // Source directory
         .arg(source_dir)
         .arg(snap_dir.to_arg());
-    match cmd.status() {
-        Err(e) => Err(e).context(format_err!(
-            "Error encountered while running {:?}",
-            color_cmd(cmd)
-        ))?,
-        Ok(status) => {
-            if !status.success() {
-                bail!(
-                    "{:?} exited with failure status {}",
-                    color_cmd(cmd),
-                    color_err(&status)
-                );
-            }
-        }
-    }
+    run_process(cmd)?;
     // TODO(cleanup): Can this clone be avoided?
     Ok(snap_dir.clone())
 }

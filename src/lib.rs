@@ -16,6 +16,7 @@ pub mod colors;
 mod daemon;
 mod git;
 mod json;
+mod merge;
 mod namespaces;
 mod paths;
 mod snapshot;
@@ -23,12 +24,17 @@ mod top_dirs;
 mod utils;
 mod zone;
 
+use crate::colors::color_dir;
+use crate::merge::{interactive_merge, Mode};
 use crate::paths::{SnapName, ZoneName};
 use crate::top_dirs::TopDirs;
-use crate::utils::execvp;
+use crate::utils::{execvp, exit_with_status, find_existent_parent_dir, maybe_strip_prefix};
 use crate::zone::Zone;
 use failure::Error;
+use nix::unistd::Pid;
 use std::env;
+use std::path::PathBuf;
+use std::process::Command;
 use structopt::StructOpt;
 use void::unreachable;
 
@@ -45,6 +51,14 @@ pub enum Cmd {
     Shell {
         #[structopt(flatten)]
         opts: ShellOpts,
+    },
+    #[structopt(
+        name = "run",
+        about = "Run a command with a temporary snapshot and zone."
+    )]
+    Run {
+        #[structopt(flatten)]
+        opts: RunOpts,
     },
     #[structopt(
         name = "snap",
@@ -70,6 +84,7 @@ pub fn run_cmd(cmd: &Cmd) -> Result<(), Error> {
     match cmd {
         Cmd::Daemon {} => daemon(),
         Cmd::Shell { opts } => shell(&opts),
+        Cmd::Run { opts } => run(&opts),
         Cmd::Snap { opts } => snap(&opts),
         // Cmd::Go { opts } => go(&opts),
     }
@@ -78,6 +93,12 @@ pub fn run_cmd(cmd: &Cmd) -> Result<(), Error> {
 /*
  * "mzr daemon"
  */
+
+// TODO(friendliness): Perhaps other commands should automatically
+// start daemon?  Ideally we wouldn't even need one, but it's not
+// entirely clear to me how to do all the mount sharing without
+// one. It may also be helpful in the future if a root daemon is
+// supported (instead of using user namespaces).
 
 fn daemon() -> Result<(), Error> {
     let top_dirs = TopDirs::find_or_prompt_create("start mzr daemon")?;
@@ -115,11 +136,64 @@ fn shell(opts: &ShellOpts) -> Result<(), Error> {
         println!("Requested zone does not yet exist, so attempting to create it.");
         Zone::create(&top_dirs.mzr_dir, &opts.zone_name, &snap_name)?;
     };
-    let zone_pid = daemon::get_zone_process(&top_dirs.mzr_dir, &opts.zone_name)?;
-    daemon::enter_zone_process_user_and_mount(&zone_pid)?;
-    env::set_current_dir(&top_dirs.user_work_dir)?;
-    env::set_var("MZR_DIR", &top_dirs.mzr_dir);
-    let void = execvp("bash")?;
+    enter_zone(&top_dirs, &opts.zone_name)?;
+    let void = execvp("/bin/bash")?;
+    unreachable(void)
+}
+
+/*
+ * "mzr run"
+ */
+
+#[derive(StructOpt, Debug)]
+pub struct RunOpts {
+    #[structopt(name = "CMD")]
+    cmd: String,
+    #[structopt(name = "ARGS")]
+    args: Vec<String>,
+}
+
+fn run(opts: &RunOpts) -> Result<(), Error> {
+    let top_dirs = TopDirs::find_or_prompt_create("run command in temp mzr zone")?;
+    // TODO(friendliness) Things to consider basing tmp zone /
+    // snapshot on:
+    //
+    // * Command run
+    // * Current date / time
+    // * Current PID
+    //
+    // For now just going with something based on PID..
+    let tmp_name = format!("run-{}", Pid::this());
+    let snap_name = SnapName::new(tmp_name.clone())?;
+    let zone_name = ZoneName::new(tmp_name.clone())?;
+    println!("Taking temporary snapshot named {}", snap_name);
+    snapshot::of_workdir(&top_dirs, &snap_name)?;
+    let zone = Zone::create(&top_dirs.mzr_dir, &zone_name, &snap_name)?;
+    println!(
+        "Running {} inside temporary zone named {}\n",
+        opts.cmd, zone_name
+    );
+    // Run process within the temporary zone, inheriting stdio.
+    enter_zone(&top_dirs, &zone_name)?;
+    let mut child = Command::new(&opts.cmd).args(&opts.args).spawn()?;
+    let status = child.wait()?;
+    // TODO: I suppose the next steps here are:
+    //
+    // 1) Have this handled by the daemon, so that it has write access to the original working copy.
+    //
+    // 2) Know which zone 'run' is being invoked from, if any.
+    //
+    // 3) Summarize updates and display conflicts and skips. Ask about the conflicts and skips
+    //
+    // 4) Delete zone and snap if specified.
+    //
+    // 5) Should store in the zone and snap metadata that they are temporary.
+    interactive_merge(
+        &zone,
+        top_dirs.user_work_dir.as_ref(),
+        Mode::AutoApplyUpdates,
+    )?;
+    let void = exit_with_status(status);
     unreachable(void)
 }
 
@@ -149,7 +223,6 @@ fn snap(opts: &SnapOpts) -> Result<(), Error> {
     );
     Ok(())
 }
-
 
 /*
  * "mzr go"
@@ -201,6 +274,37 @@ fn default_git_snap_name(
                 name
             );
             Ok(name)
+        }
+    }
+}
+
+fn enter_zone(top_dirs: &TopDirs, zone_name: &ZoneName) -> Result<(), Error> {
+    let current_directory = env::current_dir()?;
+    let zone_pid = daemon::get_zone_process(&top_dirs.mzr_dir, &zone_name)?;
+    daemon::enter_zone_process_user_and_mount(&zone_pid)?;
+    change_dir_fallback_parent(&top_dirs.user_work_dir, &current_directory)?;
+    env::set_var("MZR_DIR", &top_dirs.mzr_dir);
+    Ok(())
+}
+
+fn change_dir_fallback_parent(
+    work_dir: &paths::UserWorkDir,
+    start_dir: &PathBuf,
+) -> Result<(), Error> {
+    match find_existent_parent_dir(start_dir) {
+        Some(existent_dir) => {
+            if &existent_dir != start_dir {
+                println!(
+                    "Couldn't find {:?} in zone, so instead setting current directory to {:?}",
+                    maybe_strip_prefix(&work_dir, &existent_dir),
+                    existent_dir
+                );
+            }
+            env::set_current_dir(existent_dir)?;
+            Ok(())
+        }
+        None => {
+            bail!("Couldn't find existent parent of old CWD {:?}", start_dir);
         }
     }
 }

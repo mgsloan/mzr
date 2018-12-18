@@ -6,7 +6,10 @@ use std::ffi::OsStr;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
+use std::process::{exit, ExitStatus};
+use std::process::{Command, Stdio};
 use std::str::FromStr;
 use void::Void;
 
@@ -52,6 +55,25 @@ pub fn add_suffix_to_path(path: &PathBuf, suffix: &str) -> PathBuf {
     }
 }
 
+pub fn find_existent_parent_dir(path: &PathBuf) -> Option<PathBuf> {
+    let mut dir = path.clone();
+    while !dir.is_dir() {
+        match dir.parent() {
+            None => {
+                return None;
+            }
+            Some(parent) => {
+                dir = parent.to_path_buf();
+            }
+        }
+    }
+    Some(dir)
+}
+
+pub fn maybe_strip_prefix(prefix: &PathBuf, path: &PathBuf) -> PathBuf {
+    path.strip_prefix(prefix).unwrap_or(path).to_path_buf()
+}
+
 /*
  * String utilities
  */
@@ -68,6 +90,26 @@ pub fn strip_prefix(prefix: &str, input: &str) -> Option<String> {
  * Process utilities
  */
 
+/// Runs a process and yields an error if encountered.
+pub fn run_process(cmd: &mut Command) -> Result<(), Error> {
+    match cmd.status() {
+        Err(e) => Err(e).context(format_err!(
+            "Error encountered while running {:?}",
+            color_cmd(cmd)
+        ))?,
+        Ok(status) => {
+            if !status.success() {
+                bail!(
+                    "{:?} exited with failure status {}",
+                    color_cmd(cmd),
+                    color_err(&status)
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 // TODO: should handle args, will probably need that.
 pub fn execvp(cmd: &str) -> Result<Void, Error> {
     let cmd_cstring = CString::new(cmd).context(format!(
@@ -78,6 +120,22 @@ pub fn execvp(cmd: &str) -> Result<Void, Error> {
         "Failed to execute bash. Is it in a directory listed in your PATH environment variable?",
     )?;
     panic!("Impossible: execvp returned without an error code")
+}
+
+/// Given an `ExitStatus`, probably yielded by an invoked process,
+/// exits the current process with the same code.
+pub fn exit_with_status(status: ExitStatus) -> Void {
+    if status.success() {
+        exit(0);
+    } else {
+        match status.code() {
+            Some(code) => exit(code),
+            None => match status.signal() {
+                Some(signal) => exit(128 + signal),
+                None => panic!("Failing exit status had neither code nor signal"),
+            },
+        }
+    }
 }
 
 /*
