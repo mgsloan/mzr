@@ -32,7 +32,7 @@ pub fn symlink_git_repo(source_git_dir: &PathBuf, target_git_dir: &PathBuf) -> R
         "rr-cache",
         "svn",
     ]
-        .iter()
+    .iter()
     {
         let source_path = source_git_dir.join(shared_path);
         let target_path = target_git_dir.join(shared_path);
@@ -116,7 +116,8 @@ fn symbolic_ref_short(work_dir: &UserWorkDir) -> Result<String, GitError> {
             .arg("symbolic-ref")
             .arg("--short")
             .arg("HEAD"),
-    ).map(|x| x.trim().to_string())
+    )
+    .map(|x| x.trim().to_string())
 }
 
 fn head_sha(work_dir: &UserWorkDir) -> Result<String, GitError> {
@@ -126,7 +127,8 @@ fn head_sha(work_dir: &UserWorkDir) -> Result<String, GitError> {
             .current_dir(work_dir)
             .arg("rev-parse")
             .arg("HEAD"),
-    ).map(|x| x.trim().to_string())
+    )
+    .map(|x| x.trim().to_string())
 }
 
 pub fn get_git_dir(work_dir: &UserWorkDir) -> Result<RelativeGitRepoDir, GitError> {
@@ -136,7 +138,8 @@ pub fn get_git_dir(work_dir: &UserWorkDir) -> Result<RelativeGitRepoDir, GitErro
             .current_dir(work_dir)
             .arg("rev-parse")
             .arg("--git-dir"),
-    ).map(|x| RelativeGitRepoDir::new(x.trim()))
+    )
+    .map(|x| RelativeGitRepoDir::new(x.trim()))
 }
 
 fn collect_output(cmd: &mut Command) -> Result<String, GitError> {

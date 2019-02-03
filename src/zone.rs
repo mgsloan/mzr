@@ -1,7 +1,7 @@
-use chrono::{DateTime, Utc};
 use crate::colors::color_dir;
 use crate::json;
 use crate::paths::*;
+use chrono::{DateTime, Utc};
 use failure::{Error, ResultExt};
 use libmount::{BindMount, Overlay};
 use serde::{Deserialize, Serialize};
@@ -167,7 +167,8 @@ impl Zone {
             &self.ovfs_changes_dir,
             &self.ovfs_work_dir,
             &self.ovfs_mount_dir,
-        ).mount()
+        )
+        .mount()
         // TODO(cleanup): Should make it so that '?' can be used,
         // by making libmount Error implement Sync. Same pattern
         // repeated below for bind mount.

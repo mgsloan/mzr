@@ -250,9 +250,11 @@ fn metadata_matches(x: &Metadata, y: &Metadata) -> bool {
         return false;
     }
     match (x.modified(), y.modified()) {
-        (Ok(x_time), Ok(y_time)) => if x_time != y_time {
-            return false;
-        },
+        (Ok(x_time), Ok(y_time)) => {
+            if x_time != y_time {
+                return false;
+            }
+        }
         // TODO(correctness): Can this ever happen? I don't think so.
         _ => return false,
     }

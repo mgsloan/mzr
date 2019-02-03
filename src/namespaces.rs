@@ -45,7 +45,8 @@ where
         child_stack,
         clone_flags,
         None,
-    ).context("Error while cloning mzr child with unshared mount namespace.")?;
+    )
+    .context("Error while cloning mzr child with unshared mount namespace.")?;
     Ok(child_pid)
 }
 
@@ -81,7 +82,8 @@ where
         child_stack,
         clone_flags,
         None,
-    ).context("Error while cloning mzr child with unshared user and mount namespaces.")?;
+    )
+    .context("Error while cloning mzr child with unshared user and mount namespaces.")?;
     write_maps_fn(child_pid)?;
     send_ready(parent_server)?;
     Ok(child_pid)
