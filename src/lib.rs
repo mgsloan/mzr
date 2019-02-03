@@ -1,6 +1,5 @@
 #![feature(try_blocks)]
 #![feature(const_vec_new)]
-#![feature(uniform_paths)]
 #![warn(rust_2018_idioms)]
 // Allowing these makes prototyping convenient.
 //
@@ -193,8 +192,8 @@ fn run(opts: &RunOpts) -> Result<(), Error> {
         top_dirs.user_work_dir.as_ref(),
         Mode::AutoApplyUpdates,
     )?;
-    let void = exit_with_status(status);
-    unreachable(void)
+    let _void = exit_with_status(status);
+    unreachable(_void)
 }
 
 /*

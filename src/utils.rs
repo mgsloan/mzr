@@ -29,7 +29,7 @@ pub fn confirm(query: &str) -> Result<Confirmed, Error> {
     io::stdin()
         .read_line(&mut input)
         .context("Could not read stdin.")?;
-    match input.trim_right_matches('\n') {
+    match input.trim_end_matches('\n') {
         "y" => Ok(Confirmed::Yes),
         "n" => Ok(Confirmed::No),
         other => Err(UnexpectedConfirmInput(other.to_string()).into()),
