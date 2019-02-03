@@ -192,6 +192,8 @@ fn plan_merging_zone_changes(zone: &Zone, target_dir: &PathBuf) -> Plan {
                                     None => conflicts.push(Conflict {
                                         rel_path,
                                         reason: ConflictReason::NotInSnapshot,
+                                        source_metadata,
+                                        target_metadata,
                                     }),
                                     Some(snapshot_metadata) => {
                                         if metadata_matches(&target_metadata, &snapshot_metadata) {
@@ -204,6 +206,8 @@ fn plan_merging_zone_changes(zone: &Zone, target_dir: &PathBuf) -> Plan {
                                             conflicts.push(Conflict {
                                                 rel_path,
                                                 reason: ConflictReason::ModifiedInTarget,
+                                                source_metadata,
+                                                target_metadata,
                                             });
                                         }
                                     }
