@@ -8,7 +8,7 @@ use nix::sched::{setns, unshare, CloneFlags};
 use nix::sys::wait::{waitpid, WaitStatus::*};
 use nix::unistd::{Gid, Pid, Uid};
 use nix::Error::Sys;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::boxed::Box;
 use std::fs::{File, OpenOptions};
 use std::io::Write;

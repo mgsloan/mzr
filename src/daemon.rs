@@ -9,7 +9,7 @@ use failure::{Error, ResultExt};
 use libc::pid_t;
 use libmount::BindMount;
 use nix::unistd::{Gid, Pid, Uid};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::fs::{create_dir_all, read_dir, remove_file, File};

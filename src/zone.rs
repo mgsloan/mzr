@@ -4,7 +4,7 @@ use crate::json;
 use crate::paths::*;
 use failure::{Error, ResultExt};
 use libmount::{BindMount, Overlay};
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::fs::{create_dir, create_dir_all};
 use std::iter;
 
